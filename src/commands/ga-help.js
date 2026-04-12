@@ -6,46 +6,50 @@ const {
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName("ga-help")
-    .setDescription("Show giveaway bot help and command usage.")
+    .setName("gxhelp")
+    .setDescription("Show giveaway bot help and command usage")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   async execute(interaction) {
     const embed = new EmbedBuilder()
-      .setTitle("📖 Giveaway Bot Help")
-      .setDescription("Here are the main giveaway commands.")
+      .setTitle("📖 GiveX Help")
+      .setDescription("Here are the main GiveX commands.")
       .addFields(
         {
-          name: "/ga-create",
+          name: "/gxcreate",
           value: "Create and save a giveaway template with a unique token."
         },
         {
-          name: "/ga-view",
+          name: "/gxview",
           value: "View the full saved details of one giveaway token."
         },
         {
-          name: "/ga-list",
+          name: "/gxlist",
           value: "List all saved giveaway templates."
         },
         {
-          name: "/ga-start",
+          name: "/gxstart",
           value: "Start a giveaway from a saved token."
         },
         {
-          name: "/ga-repeat",
+          name: "/gxrepeat",
           value: "Repeat a saved giveaway using the same token settings."
         },
         {
-          name: "/ga-delete",
+          name: "/gxdelete",
           value: "Delete a saved giveaway template and free that token again."
         },
         {
-          name: "/ga-end",
+          name: "/gxend",
           value: "End a running giveaway early."
         },
         {
-          name: "/ga-reroll",
+          name: "/gxeroll",
           value: "Pick a new winner for a completed giveaway."
+        },
+        {
+          name: "/gxhelp",
+          value: "Show this help menu."
         }
       )
       .setFooter({ text: "Only you can see this help menu." });

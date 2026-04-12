@@ -7,16 +7,15 @@ const {
 } = require("discord.js");
 
 const { ensureAdmin } = require("../utils/adminOnly");
-const { parseDuration, formatDuration } = require("../utils/duration");
+const { parseDuration } = require("../utils/duration");
 const { buildTemplatePreviewEmbed } = require("../utils/embeds");
 const GiveawayTemplate = require("../models/GiveawayTemplate");
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName("ga-create")
-    .setDescription("Create a giveaway template.")
+    .setName("gxcreate")
+    .setDescription("Create giveaway template")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-
     .addStringOption(opt =>
       opt.setName("token").setDescription("Unique token").setRequired(true)
     )
@@ -24,7 +23,7 @@ module.exports = {
       opt.setName("prize").setDescription("Prize name").setRequired(true)
     )
     .addStringOption(opt =>
-      opt.setName("duration").setDescription("e.g. 24h, 1h").setRequired(true)
+      opt.setName("duration").setDescription("e.g. 24h").setRequired(true)
     )
     .addIntegerOption(opt =>
       opt.setName("winners").setDescription("Number of winners").setRequired(true)
@@ -54,32 +53,29 @@ module.exports = {
     const winnerDM = interaction.options.getString("winner_dm");
     const participantDM = interaction.options.getString("participant_dm");
 
-    // Parse duration
     let durationMs;
     try {
       durationMs = parseDuration(durationInput);
-    } catch (e) {
+    } catch {
       return interaction.reply({
         content: "❌ Invalid duration. Example: 24h",
         ephemeral: true
       });
     }
 
-    // Check duplicate token
-    const existing = await GiveawayTemplate.findOne({
+    const exists = await GiveawayTemplate.findOne({
       guildId: interaction.guild.id,
       token
     });
 
-    if (existing) {
+    if (exists) {
       return interaction.reply({
-        content: "❌ Token already exists. Use a different one.",
+        content: "❌ Token already exists. Choose another token.",
         ephemeral: true
       });
     }
 
-    // Build preview
-    const previewEmbed = buildTemplatePreviewEmbed({
+    const embed = buildTemplatePreviewEmbed({
       token,
       prize,
       durationMs,
@@ -93,31 +89,28 @@ module.exports = {
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`ga_save_${token}`)
+        .setCustomId(`gx_save_${token}`)
         .setLabel("Save")
         .setStyle(ButtonStyle.Success),
-
       new ButtonBuilder()
-        .setCustomId("ga_cancel")
+        .setCustomId("gx_cancel")
         .setLabel("Cancel")
         .setStyle(ButtonStyle.Danger)
     );
 
     await interaction.reply({
-      embeds: [previewEmbed],
+      embeds: [embed],
       components: [row],
       ephemeral: true
     });
 
-    // Button collector
-    const filter = i => i.user.id === interaction.user.id;
     const collector = interaction.channel.createMessageComponentCollector({
-      filter,
+      filter: i => i.user.id === interaction.user.id,
       time: 60000
     });
 
     collector.on("collect", async i => {
-      if (i.customId === "ga_cancel") {
+      if (i.customId === "gx_cancel") {
         return i.update({
           content: "❌ Giveaway creation cancelled.",
           embeds: [],
@@ -125,7 +118,7 @@ module.exports = {
         });
       }
 
-      if (i.customId === `ga_save_${token}`) {
+      if (i.customId === `gx_save_${token}`) {
         await GiveawayTemplate.create({
           guildId: interaction.guild.id,
           token,
@@ -140,7 +133,7 @@ module.exports = {
         });
 
         return i.update({
-          content: `✅ Giveaway template saved with token: ${token}`,
+          content: `✅ Giveaway template saved with token ${token}.`,
           embeds: [],
           components: []
         });

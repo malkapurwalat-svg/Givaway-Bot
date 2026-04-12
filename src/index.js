@@ -29,7 +29,6 @@ const client = new Client({
 
 client.commands = new Collection();
 
-// Load commands
 const commandsPath = path.join(__dirname, "commands");
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith(".js"));
 
@@ -40,17 +39,14 @@ for (const file of commandFiles) {
   }
 }
 
-// Mongo connect
 mongoose.connect(process.env.MONGO_URL).then(() => {
   console.log("✅ Connected to MongoDB");
 });
 
-// Ready
 client.once("clientReady", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
-// DM participant instantly when they react
 client.on("messageReactionAdd", async (reaction, user) => {
   try {
     if (user.bot) return;
@@ -79,7 +75,6 @@ client.on("messageReactionAdd", async (reaction, user) => {
   }
 });
 
-// Interaction
 client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand()) return;
 

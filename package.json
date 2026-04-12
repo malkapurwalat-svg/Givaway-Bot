@@ -1,0 +1,20 @@
+{
+  "name": "ga-bot",
+  "version": "1.0.0",
+  "description": "Custom Discord giveaway bot with templates, repeats, previews, and DMs",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "discord.js": "^14.18.0",
+    "dotenv": "^16.4.5",
+    "mongoose": "^8.9.0",
+    "ms": "^2.1.3"
+  }
+}

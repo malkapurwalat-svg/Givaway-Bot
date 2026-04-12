@@ -10,8 +10,8 @@ const { formatDuration } = require("../utils/duration");
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName("ga-list")
-    .setDescription("List all saved giveaway templates.")
+    .setName("gxlist")
+    .setDescription("List all saved giveaway templates")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   async execute(interaction) {

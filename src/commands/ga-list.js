@@ -3,7 +3,7 @@ const { ensureAdmin } = require("../utils/adminOnly");
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName("REPLACE_NAME")
+    .setName("ga-list")
     .setDescription("Temporary placeholder command.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 

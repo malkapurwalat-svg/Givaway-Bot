@@ -41,6 +41,8 @@ for (const file of commandFiles) {
 
 mongoose.connect(process.env.MONGO_URL).then(() => {
   console.log("✅ Connected to MongoDB");
+}).catch((error) => {
+  console.error("❌ MongoDB connection error:", error);
 });
 
 client.once("clientReady", () => {
@@ -51,9 +53,15 @@ client.on("messageReactionAdd", async (reaction, user) => {
   try {
     if (user.bot) return;
 
-    if (reaction.partial) await reaction.fetch().catch(() => null);
+    if (reaction.partial) {
+      await reaction.fetch().catch(() => null);
+    }
+
     if (!reaction.message) return;
-    if (reaction.message.partial) await reaction.message.fetch().catch(() => null);
+
+    if (reaction.message.partial) {
+      await reaction.message.fetch().catch(() => null);
+    }
 
     if (reaction.emoji.name !== "🎉") return;
 
@@ -84,16 +92,16 @@ client.on("interactionCreate", async interaction => {
   try {
     await command.execute(interaction, client);
   } catch (error) {
-    console.error(error);
+    console.error(`Command error in ${interaction.commandName}:`, error);
 
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp({
-        content: "❌ Error executing command",
+        content: "❌ Error executing command.",
         ephemeral: true
       }).catch(() => null);
     } else {
       await interaction.reply({
-        content: "❌ Error executing command",
+        content: "❌ Error executing command.",
         ephemeral: true
       }).catch(() => null);
     }

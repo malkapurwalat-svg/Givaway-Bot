@@ -29,11 +29,15 @@ module.exports = {
         },
         {
           name: "/ga-start",
-          value: "Start a giveaway from a saved token after preview confirmation."
+          value: "Start a giveaway from a saved token."
         },
         {
           name: "/ga-repeat",
-          value: "Repeat an old saved giveaway using the same token settings."
+          value: "Repeat a saved giveaway using the same token settings."
+        },
+        {
+          name: "/ga-delete",
+          value: "Delete a saved giveaway template and free that token again."
         },
         {
           name: "/ga-end",

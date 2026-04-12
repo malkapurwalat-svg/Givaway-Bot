@@ -9,14 +9,11 @@ const GiveawayRun = require("../models/GiveawayRun");
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName("ga-repeat")
-    .setDescription("Repeat a saved giveaway using its token.")
+    .setName("gxrepeat")
+    .setDescription("Repeat a saved giveaway using its token")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addStringOption(option =>
-      option
-        .setName("token")
-        .setDescription("Saved giveaway token")
-        .setRequired(true)
+    .addStringOption(opt =>
+      opt.setName("token").setDescription("Saved token").setRequired(true)
     ),
 
   async execute(interaction, client) {
@@ -45,20 +42,20 @@ module.exports = {
       });
     }
 
-    const giveawayMessage = await channel.send({
+    const msg = await channel.send({
       content: `${template.announcementMessage}\n\n🎉 React with 🎉 to enter!\n🏆 Prize: ${template.prize}`
     });
 
-    await giveawayMessage.react("🎉");
+    await msg.react("🎉");
 
     const run = await GiveawayRun.create({
       guildId: interaction.guild.id,
-      templateToken: template.token,
+      templateToken: token,
       prize: template.prize,
       durationMs: template.durationMs,
       winnerCount: template.winnerCount,
-      channelId: template.channelId,
-      messageId: giveawayMessage.id,
+      channelId: channel.id,
+      messageId: msg.id,
       hostUserId: interaction.user.id,
       announcementMessage: template.announcementMessage,
       winnerDmMessage: template.winnerDmMessage,
@@ -71,7 +68,7 @@ module.exports = {
     });
 
     await interaction.reply({
-      content: `✅ Giveaway repeated in <#${channel.id}> with token \`${token}\`.`,
+      content: `✅ Giveaway repeated in <#${channel.id}>.`,
       ephemeral: true
     });
 
@@ -80,7 +77,7 @@ module.exports = {
         const freshRun = await GiveawayRun.findById(run._id);
         if (!freshRun || freshRun.status !== "running") return;
 
-        const fetchedMessage = await channel.messages.fetch(giveawayMessage.id).catch(() => null);
+        const fetchedMessage = await channel.messages.fetch(msg.id).catch(() => null);
 
         if (!fetchedMessage) {
           freshRun.status = "ended";
@@ -132,7 +129,7 @@ module.exports = {
           await winner.send(template.winnerDmMessage).catch(() => null);
         }
       } catch (error) {
-        console.error("ga-repeat end error:", error);
+        console.error("gxrepeat end error:", error);
         await channel.send("❌ Something went wrong while ending the giveaway.").catch(() => null);
       }
     }, template.durationMs);

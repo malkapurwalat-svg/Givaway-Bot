@@ -30,6 +30,6 @@ const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
 
     console.log("✅ Slash commands registered.");
   } catch (error) {
-    console.error(error);
+    console.error("❌ Slash command registration error:", error);
   }
 })();

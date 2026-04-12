@@ -8,8 +8,8 @@ const GiveawayTemplate = require("../models/GiveawayTemplate");
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName("ga-delete")
-    .setDescription("Delete a saved giveaway template and free its token.")
+    .setName("gxdelete")
+    .setDescription("Delete a saved giveaway template and free its token")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption(option =>
       option
@@ -41,7 +41,7 @@ module.exports = {
     });
 
     await interaction.reply({
-      content: `✅ Giveaway template with token \`${token}\` was deleted. That token is now free to use again.`,
+      content: `✅ Giveaway template with token ${token} was deleted. That token is now free to use again.`,
       ephemeral: true
     });
   }

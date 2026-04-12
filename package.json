@@ -1,7 +1,7 @@
 {
   "name": "ga-bot",
   "version": "1.0.0",
-  "description": "Custom Discord giveaway bot",
+  "description": "GiveX Giveaway Bot",
   "main": "src/index.js",
   "type": "commonjs",
   "scripts": {

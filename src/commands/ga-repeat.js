@@ -5,6 +5,7 @@ const {
 
 const { ensureAdmin } = require("../utils/adminOnly");
 const GiveawayTemplate = require("../models/GiveawayTemplate");
+const GiveawayRun = require("../models/GiveawayRun");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -50,6 +51,25 @@ module.exports = {
 
     await giveawayMessage.react("🎉");
 
+    const run = await GiveawayRun.create({
+      guildId: interaction.guild.id,
+      templateToken: template.token,
+      prize: template.prize,
+      durationMs: template.durationMs,
+      winnerCount: template.winnerCount,
+      channelId: template.channelId,
+      messageId: giveawayMessage.id,
+      hostUserId: interaction.user.id,
+      announcementMessage: template.announcementMessage,
+      winnerDmMessage: template.winnerDmMessage,
+      participantDmMessage: template.participantDmMessage,
+      status: "running",
+      startedAt: new Date(),
+      endsAt: new Date(Date.now() + template.durationMs),
+      participantIds: [],
+      winnerIds: []
+    });
+
     await interaction.reply({
       content: `✅ Giveaway repeated in <#${channel.id}> with token \`${token}\`.`,
       ephemeral: true
@@ -57,9 +77,14 @@ module.exports = {
 
     setTimeout(async () => {
       try {
+        const freshRun = await GiveawayRun.findById(run._id);
+        if (!freshRun || freshRun.status !== "running") return;
+
         const fetchedMessage = await channel.messages.fetch(giveawayMessage.id).catch(() => null);
 
         if (!fetchedMessage) {
+          freshRun.status = "ended";
+          await freshRun.save();
           await channel.send("❌ Giveaway message could not be found when ending the giveaway.");
           return;
         }
@@ -67,6 +92,8 @@ module.exports = {
         const reaction = fetchedMessage.reactions.cache.get("🎉");
 
         if (!reaction) {
+          freshRun.status = "ended";
+          await freshRun.save();
           await channel.send(`❌ Giveaway ended. No one entered.\n🎁 Prize: ${template.prize}`);
           return;
         }
@@ -75,6 +102,8 @@ module.exports = {
         const participants = users.filter(user => !user.bot);
 
         if (participants.size === 0) {
+          freshRun.status = "ended";
+          await freshRun.save();
           await channel.send(`❌ Giveaway ended. No valid participants.\n🎁 Prize: ${template.prize}`);
           return;
         }
@@ -90,18 +119,17 @@ module.exports = {
           }
         }
 
+        freshRun.status = "ended";
+        freshRun.winnerIds = winners.map(user => user.id);
+        freshRun.participantIds = participantArray.map(user => user.id);
+        await freshRun.save();
+
         await channel.send({
           content: `🎉 **Giveaway Ended!**\n🏆 Winner(s): ${winners.map(user => `<@${user.id}>`).join(", ")}\n🎁 Prize: ${template.prize}`
         });
 
         for (const winner of winners) {
           await winner.send(template.winnerDmMessage).catch(() => null);
-        }
-
-        for (const participant of participantArray) {
-          if (!winners.find(winner => winner.id === participant.id)) {
-            await participant.send(template.participantDmMessage).catch(() => null);
-          }
         }
       } catch (error) {
         console.error("ga-repeat end error:", error);

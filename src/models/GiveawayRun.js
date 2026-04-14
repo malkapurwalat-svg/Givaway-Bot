@@ -48,6 +48,14 @@ const giveawayRunSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+    requiredRoleId: {
+      type: String,
+      default: ""
+    },
+    minAccountAgeDays: {
+      type: Number,
+      default: 0
+    },
     customEndingMessage1: {
       type: String,
       default: ""
@@ -61,6 +69,10 @@ const giveawayRunSchema = new mongoose.Schema(
       default: ""
     },
     participants: {
+      type: [String],
+      default: []
+    },
+    blockedUsers: {
       type: [String],
       default: []
     },

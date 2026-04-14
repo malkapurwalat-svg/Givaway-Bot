@@ -115,3 +115,5 @@ start().catch((error) => {
   console.error("Startup error:", error);
   process.exit(1);
 });
+
+module.exports = client;

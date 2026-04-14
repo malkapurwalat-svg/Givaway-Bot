@@ -1,5 +1,6 @@
 const GiveawayRun = require("../models/GiveawayRun");
 const {
+  buildStatusEmbed,
   buildWinnersEmbed,
   buildNoParticipantsEmbed,
   buildManualPickEmbed
@@ -21,26 +22,6 @@ function getRemainingMs(run) {
   return Math.max(0, new Date(run.endsAt).getTime() - Date.now());
 }
 
-function buildStatusMessage(run) {
-  const remaining = getRemainingMs(run);
-  const nowUnix = Math.floor(Date.now() / 1000);
-  const endUnix = Math.floor(new Date(run.endsAt).getTime() / 1000);
-  const announcementUrl = `https://discord.com/channels/${run.guildId}/${run.channelId}/${run.messageId}`;
-
-  return [
-    `🎉 **GiveX Live Giveaway Status**`,
-    ``,
-    `🏷️ **Token:** \`${run.templateToken}\``,
-    `🎁 **Prize:** ${run.prize}`,
-    `🏆 **Winners:** ${run.winnerCount}`,
-    `📌 **Status:** ${run.status.toUpperCase()}`,
-    `⏳ **This giveaway will end in:** ${run.status === "running" ? formatDurationDetailed(remaining) : "Ended"}`,
-    `🕒 **Ends at:** <t:${endUnix}:F>`,
-    `🔗 **Announcement:** ${announcementUrl}`,
-    `📝 **Last updated:** <t:${nowUnix}:R>`
-  ].join("\n");
-}
-
 async function updateStatusMessage(client, runId) {
   const run = await GiveawayRun.findById(runId);
   if (!run || !run.statusMessageId) return false;
@@ -52,7 +33,8 @@ async function updateStatusMessage(client, runId) {
   if (!statusMessage) return false;
 
   await statusMessage.edit({
-    content: buildStatusMessage(run)
+    embeds: [buildStatusEmbed(run)],
+    content: ""
   }).catch(() => null);
 
   return run.status === "running";
@@ -286,7 +268,7 @@ function scheduleGiveawayLifecycle(client, runId, durationMs) {
 }
 
 module.exports = {
-  buildStatusMessage,
+  buildStatusEmbed,
   scheduleGiveawayLifecycle,
   pickWinnerManually
 };

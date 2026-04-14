@@ -7,10 +7,9 @@ const { ensureAdmin } = require("../utils/adminOnly");
 const GiveawayTemplate = require("../models/GiveawayTemplate");
 const GiveawayRun = require("../models/GiveawayRun");
 const {
-  buildEndingSoonEmbed,
-  buildWinnersEmbed,
-  buildNoParticipantsEmbed
-} = require("../utils/embeds");
+  buildStatusMessage,
+  scheduleGiveawayLifecycle
+} = require("../utils/giveawayRuntime");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -23,8 +22,26 @@ module.exports = {
     .addStringOption(opt =>
       opt
         .setName("message_id")
-        .setDescription("The message ID of your manual giveaway announcement")
+        .setDescription("Message ID of your manual giveaway announcement")
         .setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt
+        .setName("ending_message_1")
+        .setDescription("Optional message for halfway warning. Use {time} if you want.")
+        .setRequired(false)
+    )
+    .addStringOption(opt =>
+      opt
+        .setName("ending_message_2")
+        .setDescription("Optional message for quarter-time warning. Use {time} if you want.")
+        .setRequired(false)
+    )
+    .addStringOption(opt =>
+      opt
+        .setName("winner_announcement")
+        .setDescription("Optional final winner message. Use {winner_mentions}, {prize}, {token}.")
+        .setRequired(false)
     ),
 
   async execute(interaction, client) {
@@ -32,6 +49,9 @@ module.exports = {
 
     const token = interaction.options.getString("token");
     const messageId = interaction.options.getString("message_id");
+    const endingMessage1 = interaction.options.getString("ending_message_1") || "";
+    const endingMessage2 = interaction.options.getString("ending_message_2") || "";
+    const winnerAnnouncement = interaction.options.getString("winner_announcement") || "";
 
     const template = await GiveawayTemplate.findOne({
       guildId: interaction.guild.id,
@@ -41,6 +61,19 @@ module.exports = {
     if (!template) {
       return interaction.reply({
         content: "❌ No giveaway template found with that token.",
+        ephemeral: true
+      });
+    }
+
+    const alreadyRunning = await GiveawayRun.findOne({
+      guildId: interaction.guild.id,
+      templateToken: token,
+      status: "running"
+    });
+
+    if (alreadyRunning) {
+      return interaction.reply({
+        content: "❌ A giveaway with this token is already running. Wait for it to finish first.",
         ephemeral: true
       });
     }
@@ -77,6 +110,9 @@ module.exports = {
       announcementMessage: template.announcementMessage,
       winnerDmMessage: template.winnerDmMessage,
       participantDmMessage: template.participantDmMessage,
+      customEndingMessage1: endingMessage1,
+      customEndingMessage2: endingMessage2,
+      customWinnerAnnouncement: winnerAnnouncement,
       status: "running",
       startedAt: new Date(),
       endsAt: new Date(Date.now() + template.durationMs),
@@ -85,103 +121,13 @@ module.exports = {
     });
 
     await interaction.reply({
-      content: `✅ Giveaway attached to message \`${messageId}\` in <#${channel.id}>.`,
-      ephemeral: true
+      content: buildStatusMessage(run)
     });
 
-    const endingSoonMs = 10 * 60 * 1000;
+    const statusMessage = await interaction.fetchReply();
+    run.statusMessageId = statusMessage.id;
+    await run.save();
 
-    if (template.durationMs > endingSoonMs) {
-      setTimeout(async () => {
-        try {
-          const freshRun = await GiveawayRun.findById(run._id);
-          if (!freshRun || freshRun.status !== "running") return;
-
-          const endingSoonEmbed = buildEndingSoonEmbed(
-            template.prize,
-            template.winnerCount,
-            10
-          );
-
-          await channel.send({
-            content: "@everyone",
-            embeds: [endingSoonEmbed]
-          });
-        } catch (error) {
-          console.error("gxstart ending soon error:", error);
-        }
-      }, template.durationMs - endingSoonMs);
-    }
-
-    setTimeout(async () => {
-      try {
-        const freshRun = await GiveawayRun.findById(run._id);
-        if (!freshRun || freshRun.status !== "running") return;
-
-        const fetchedMessage = await channel.messages.fetch(existingMessage.id).catch(() => null);
-
-        if (!fetchedMessage) {
-          freshRun.status = "ended";
-          await freshRun.save();
-          await channel.send("❌ Giveaway message could not be found when ending the giveaway.");
-          return;
-        }
-
-        const reaction = fetchedMessage.reactions.cache.get("🎉");
-
-        if (!reaction) {
-          freshRun.status = "ended";
-          await freshRun.save();
-
-          await channel.send({
-            embeds: [buildNoParticipantsEmbed(template.prize)]
-          });
-          return;
-        }
-
-        const users = await reaction.users.fetch();
-        const participants = users.filter(user => !user.bot);
-
-        if (participants.size === 0) {
-          freshRun.status = "ended";
-          await freshRun.save();
-
-          await channel.send({
-            embeds: [buildNoParticipantsEmbed(template.prize)]
-          });
-          return;
-        }
-
-        const participantArray = [...participants.values()];
-        const winnerCount = Math.min(template.winnerCount, participantArray.length);
-        const winners = [];
-
-        while (winners.length < winnerCount) {
-          const randomUser =
-            participantArray[Math.floor(Math.random() * participantArray.length)];
-
-          if (!winners.find(user => user.id === randomUser.id)) {
-            winners.push(randomUser);
-          }
-        }
-
-        freshRun.status = "ended";
-        freshRun.winnerIds = winners.map(user => user.id);
-        freshRun.participantIds = participantArray.map(user => user.id);
-        await freshRun.save();
-
-        await channel.send({
-          content: "@everyone",
-          embeds: [buildWinnersEmbed(template.prize, winners)]
-        });
-
-        for (const winner of winners) {
-          await winner.send(template.winnerDmMessage).catch(() => null);
-        }
-      } catch (error) {
-        console.error("gxstart end error:", error);
-        await channel.send("❌ Something went wrong while ending the giveaway.").catch(() => null);
-      }
-    }, template.durationMs);
+    scheduleGiveawayLifecycle(client, run._id, run.durationMs);
   }
 };

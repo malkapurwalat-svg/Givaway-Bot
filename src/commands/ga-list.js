@@ -11,7 +11,7 @@ const { formatDuration } = require("../utils/duration");
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("gxlist")
-    .setDescription("List all saved giveaway templates")
+    .setDescription("List saved giveaway templates")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   async execute(interaction) {
@@ -23,7 +23,7 @@ module.exports = {
 
     if (!templates.length) {
       return interaction.reply({
-        content: "❌ No saved giveaway templates found.",
+        content: "❌ No saved giveaways found.",
         ephemeral: true
       });
     }

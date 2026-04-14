@@ -32,7 +32,6 @@ function formatDurationDetailed(durationMs) {
   const seconds = totalSeconds % 60;
 
   const parts = [];
-
   if (days) parts.push(`${days} day${days === 1 ? "" : "s"}`);
   if (hours) parts.push(`${hours} hour${hours === 1 ? "" : "s"}`);
   if (minutes) parts.push(`${minutes} minute${minutes === 1 ? "" : "s"}`);

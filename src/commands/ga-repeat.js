@@ -1,48 +1,27 @@
 const {
   SlashCommandBuilder,
-  PermissionFlagsBits
+  PermissionFlagsBits,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
 } = require("discord.js");
 
 const { ensureAdmin } = require("../utils/adminOnly");
 const GiveawayTemplate = require("../models/GiveawayTemplate");
 const GiveawayRun = require("../models/GiveawayRun");
-const {
-  buildStatusEmbed,
-  scheduleGiveawayLifecycle
-} = require("../utils/giveawayRuntime");
+const { buildLiveEmbed } = require("../utils/embeds");
+const { scheduleGiveawayLifecycle } = require("../utils/runtime");
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("gxrepeat")
-    .setDescription("Repeat a saved giveaway on an existing message")
+    .setDescription("Repeat a giveaway on your own message")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addStringOption(opt =>
-      opt.setName("token").setDescription("Saved token").setRequired(true)
-    )
-    .addStringOption(opt =>
-      opt
-        .setName("message_id")
-        .setDescription("Message ID of your manual giveaway announcement")
-        .setRequired(true)
-    )
-    .addStringOption(opt =>
-      opt
-        .setName("ending_message_1")
-        .setDescription("Optional message for halfway warning. Use {time} if you want.")
-        .setRequired(false)
-    )
-    .addStringOption(opt =>
-      opt
-        .setName("ending_message_2")
-        .setDescription("Optional message for quarter-time warning. Use {time} if you want.")
-        .setRequired(false)
-    )
-    .addStringOption(opt =>
-      opt
-        .setName("winner_announcement")
-        .setDescription("Optional final winner message. Use {winner_mentions}, {prize}, {token}.")
-        .setRequired(false)
-    ),
+    .addStringOption(opt => opt.setName("token").setDescription("Saved token").setRequired(true))
+    .addStringOption(opt => opt.setName("message_id").setDescription("Your manual giveaway message ID").setRequired(true))
+    .addStringOption(opt => opt.setName("ending_message_1").setDescription("Half-time warning. Use {time}").setRequired(false))
+    .addStringOption(opt => opt.setName("ending_message_2").setDescription("Quarter-time warning. Use {time}").setRequired(false))
+    .addStringOption(opt => opt.setName("winner_announcement").setDescription("Final winner message. Use {winner_mentions}").setRequired(false)),
 
   async execute(interaction, client) {
     if (!(await ensureAdmin(interaction))) return;
@@ -73,30 +52,26 @@ module.exports = {
 
     if (alreadyRunning) {
       return interaction.reply({
-        content: "❌ A giveaway with this token is already running. Wait for it to finish first.",
+        content: "❌ A giveaway with this token is already running.",
         ephemeral: true
       });
     }
 
     const channel = await client.channels.fetch(template.channelId).catch(() => null);
-
     if (!channel || !channel.isTextBased()) {
       return interaction.reply({
-        content: "❌ Giveaway channel not found or not usable.",
+        content: "❌ Giveaway channel not found.",
         ephemeral: true
       });
     }
 
-    const existingMessage = await channel.messages.fetch(messageId).catch(() => null);
-
-    if (!existingMessage) {
+    const announcementMsg = await channel.messages.fetch(messageId).catch(() => null);
+    if (!announcementMsg) {
       return interaction.reply({
-        content: "❌ Could not find that message ID in the saved giveaway channel.",
+        content: "❌ Could not find that message ID in the saved channel.",
         ephemeral: true
       });
     }
-
-    await existingMessage.react("🎉").catch(() => null);
 
     const run = await GiveawayRun.create({
       guildId: interaction.guild.id,
@@ -105,23 +80,37 @@ module.exports = {
       durationMs: template.durationMs,
       winnerCount: template.winnerCount,
       channelId: channel.id,
-      messageId: existingMessage.id,
+      messageId: announcementMsg.id,
       hostUserId: interaction.user.id,
-      announcementMessage: template.announcementMessage,
       winnerDmMessage: template.winnerDmMessage,
       participantDmMessage: template.participantDmMessage,
       customEndingMessage1: endingMessage1,
       customEndingMessage2: endingMessage2,
       customWinnerAnnouncement: winnerAnnouncement,
+      participants: [],
+      winnerIds: [],
       status: "running",
-      startedAt: new Date(),
-      endsAt: new Date(Date.now() + template.durationMs),
-      participantIds: [],
-      winnerIds: []
+      startedAt: Date.now(),
+      endsAt: Date.now() + template.durationMs
     });
 
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`join_${run._id}`)
+        .setLabel("🎉 Join Giveaway")
+        .setStyle(ButtonStyle.Success)
+    );
+
+    const statusMessage = await channel.send({
+      embeds: [buildLiveEmbed(run)],
+      components: [row]
+    });
+
+    run.statusMessageId = statusMessage.id;
+    await run.save();
+
     await interaction.reply({
-      embeds: [buildStatusEmbed(run)],
+      content: "✅ Giveaway repeated!",
       ephemeral: true
     });
 

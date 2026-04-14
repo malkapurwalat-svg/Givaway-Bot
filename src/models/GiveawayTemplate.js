@@ -13,8 +13,7 @@ const giveawayTemplateSchema = new mongoose.Schema(
     },
     prize: {
       type: String,
-      required: true,
-      trim: true
+      required: true
     },
     durationMs: {
       type: Number,
@@ -23,8 +22,6 @@ const giveawayTemplateSchema = new mongoose.Schema(
     winnerCount: {
       type: Number,
       required: true,
-      min: 1,
-      max: 20,
       default: 1
     },
     channelId: {

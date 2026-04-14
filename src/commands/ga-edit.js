@@ -12,30 +12,14 @@ module.exports = {
     .setName("gxedit")
     .setDescription("Edit a saved giveaway template")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addStringOption(opt =>
-      opt.setName("token").setDescription("Token to edit").setRequired(true)
-    )
-    .addStringOption(opt =>
-      opt.setName("prize").setDescription("New prize").setRequired(false)
-    )
-    .addStringOption(opt =>
-      opt.setName("duration").setDescription("New duration, e.g. 24h").setRequired(false)
-    )
-    .addIntegerOption(opt =>
-      opt.setName("winners").setDescription("New winner count").setRequired(false)
-    )
-    .addChannelOption(opt =>
-      opt.setName("channel").setDescription("New giveaway channel").setRequired(false)
-    )
-    .addStringOption(opt =>
-      opt.setName("announcement").setDescription("New announcement").setRequired(false)
-    )
-    .addStringOption(opt =>
-      opt.setName("winner_dm").setDescription("New winner DM").setRequired(false)
-    )
-    .addStringOption(opt =>
-      opt.setName("participant_dm").setDescription("New participant DM").setRequired(false)
-    ),
+    .addStringOption(opt => opt.setName("token").setDescription("Token to edit").setRequired(true))
+    .addStringOption(opt => opt.setName("prize").setDescription("New prize").setRequired(false))
+    .addStringOption(opt => opt.setName("duration").setDescription("New duration").setRequired(false))
+    .addIntegerOption(opt => opt.setName("winners").setDescription("New winner count").setRequired(false))
+    .addChannelOption(opt => opt.setName("channel").setDescription("New channel").setRequired(false))
+    .addStringOption(opt => opt.setName("announcement").setDescription("New announcement").setRequired(false))
+    .addStringOption(opt => opt.setName("winner_dm").setDescription("New winner DM").setRequired(false))
+    .addStringOption(opt => opt.setName("participant_dm").setDescription("New participant DM").setRequired(false)),
 
   async execute(interaction) {
     if (!(await ensureAdmin(interaction))) return;
@@ -74,7 +58,7 @@ module.exports = {
         changed = true;
       } catch {
         return interaction.reply({
-          content: "❌ Invalid duration. Example: 24h",
+          content: "❌ Invalid duration.",
           ephemeral: true
         });
       }

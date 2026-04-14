@@ -1,3 +1,9 @@
+const {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require("discord.js");
+
 const GiveawayRun = require("../models/GiveawayRun");
 const {
   buildLiveEmbed,
@@ -19,6 +25,16 @@ function renderText(template, values) {
     .replace(/\{winner_mentions\}/gi, values.winnerMentions ?? "");
 }
 
+function buildDisabledButtonRow() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("join_disabled")
+      .setLabel("Giveaway Ended")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true)
+  );
+}
+
 async function updateLiveMessage(client, runId) {
   const run = await GiveawayRun.findById(runId);
   if (!run || !run.statusMessageId) return false;
@@ -29,9 +45,14 @@ async function updateLiveMessage(client, runId) {
   const msg = await channel.messages.fetch(run.statusMessageId).catch(() => null);
   if (!msg) return false;
 
+  const components =
+    run.status === "running"
+      ? msg.components
+      : [buildDisabledButtonRow()];
+
   await msg.edit({
     embeds: [buildLiveEmbed(run)],
-    components: msg.components
+    components
   }).catch(() => null);
 
   return run.status === "running";

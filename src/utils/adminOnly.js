@@ -3,7 +3,7 @@ const { PermissionFlagsBits } = require("discord.js");
 async function ensureAdmin(interaction) {
   const member = interaction.member;
 
-  const hasPermission =
+  const allowed =
     member &&
     member.permissions &&
     (
@@ -11,19 +11,12 @@ async function ensureAdmin(interaction) {
       member.permissions.has(PermissionFlagsBits.ManageGuild)
     );
 
-  if (hasPermission) return true;
+  if (allowed) return true;
 
-  if (!interaction.replied && !interaction.deferred) {
-    await interaction.reply({
-      content: "❌ This is an admin-only command.",
-      ephemeral: true
-    });
-  } else {
-    await interaction.followUp({
-      content: "❌ This is an admin-only command.",
-      ephemeral: true
-    });
-  }
+  await interaction.reply({
+    content: "❌ This is an admin-only command.",
+    ephemeral: true
+  }).catch(() => null);
 
   return false;
 }

@@ -5,15 +5,14 @@ const {
 
 const { ensureAdmin } = require("../utils/adminOnly");
 const GiveawayRun = require("../models/GiveawayRun");
+const { buildWinnersEmbed, buildNoParticipantsEmbed } = require("../utils/embeds");
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("gxend")
     .setDescription("End a running giveaway early")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addStringOption(opt =>
-      opt.setName("message_id").setDescription("Giveaway message ID").setRequired(true)
-    ),
+    .addStringOption(opt => opt.setName("message_id").setDescription("Announcement message ID").setRequired(true)),
 
   async execute(interaction, client) {
     if (!(await ensureAdmin(interaction))) return;
@@ -21,13 +20,14 @@ module.exports = {
     const messageId = interaction.options.getString("message_id");
 
     const run = await GiveawayRun.findOne({
+      guildId: interaction.guild.id,
       messageId,
       status: "running"
     });
 
     if (!run) {
       return interaction.reply({
-        content: "❌ No active giveaway found with that message ID.",
+        content: "❌ No running giveaway found with that message ID.",
         ephemeral: true
       });
     }
@@ -40,59 +40,45 @@ module.exports = {
       });
     }
 
-    const message = await channel.messages.fetch(run.messageId).catch(() => null);
-    if (!message) {
+    if (!run.participants.length) {
       run.status = "ended";
       await run.save();
+
+      await channel.send({
+        embeds: [buildNoParticipantsEmbed(run.prize)]
+      }).catch(() => null);
+
       return interaction.reply({
-        content: "❌ Giveaway message not found.",
+        content: "✅ Giveaway ended with no participants.",
         ephemeral: true
       });
     }
 
-    const reaction = message.reactions.cache.get("🎉");
-
-    if (!reaction) {
-      run.status = "ended";
-      await run.save();
-      return interaction.reply({
-        content: "❌ No participants.",
-        ephemeral: true
-      });
-    }
-
-    const users = await reaction.users.fetch();
-    const participants = users.filter(u => !u.bot);
-
-    if (participants.size === 0) {
-      run.status = "ended";
-      await run.save();
-      return interaction.reply({
-        content: "❌ No valid participants.",
-        ephemeral: true
-      });
-    }
-
-    const arr = [...participants.values()];
-    const winnerCount = Math.min(run.winnerCount || 1, arr.length);
+    const pool = [...run.participants];
     const winners = [];
 
-    while (winners.length < winnerCount) {
-      const chosen = arr[Math.floor(Math.random() * arr.length)];
-      if (!winners.find(w => w.id === chosen.id)) {
-        winners.push(chosen);
-      }
+    while (winners.length < Math.min(run.winnerCount, pool.length)) {
+      const randomId = pool[Math.floor(Math.random() * pool.length)];
+      if (!winners.includes(randomId)) winners.push(randomId);
+    }
+
+    const users = [];
+    for (const id of winners) {
+      const user = await client.users.fetch(id).catch(() => null);
+      if (user) users.push(user);
     }
 
     run.status = "ended";
-    run.winnerIds = winners.map(w => w.id);
-    run.participantIds = arr.map(u => u.id);
+    run.winnerIds = winners;
     await run.save();
 
-    await channel.send(`⏹️ **Giveaway Ended Early!**\n🏆 Winner(s): ${winners.map(w => `<@${w.id}>`).join(", ")}\n🎁 Prize: ${run.prize}`);
+    await channel.send({
+      content: "@everyone",
+      embeds: [buildWinnersEmbed(run.prize, users)]
+    }).catch(() => null);
 
-    for (const winner of winners) {
-      await winner.send(run.winnerDmMessage).catch(() => null);
+    for (const user of users) {
+      await user.send(run.winnerDmMessage).catch(() => null);
     }
 
     await interaction.reply({

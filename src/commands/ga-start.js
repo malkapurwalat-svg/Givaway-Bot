@@ -10,7 +10,7 @@ const { ensureAdmin } = require("../utils/adminOnly");
 const GiveawayTemplate = require("../models/GiveawayTemplate");
 const GiveawayRun = require("../models/GiveawayRun");
 const { buildLiveEmbed } = require("../utils/embeds");
-const { scheduleGiveawayLifecycle } = require("../utils/runtime");
+const { scheduleGiveawayLifecycle, logToChannel } = require("../utils/runtime");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -21,7 +21,9 @@ module.exports = {
     .addStringOption(opt => opt.setName("message_id").setDescription("Your manual giveaway message ID").setRequired(true))
     .addStringOption(opt => opt.setName("ending_message_1").setDescription("Half-time warning. Use {time}").setRequired(false))
     .addStringOption(opt => opt.setName("ending_message_2").setDescription("Quarter-time warning. Use {time}").setRequired(false))
-    .addStringOption(opt => opt.setName("winner_announcement").setDescription("Final winner message. Use {winner_mentions}").setRequired(false)),
+    .addStringOption(opt => opt.setName("winner_announcement").setDescription("Final winner message. Use {winner_mentions}").setRequired(false))
+    .addChannelOption(opt => opt.setName("log_channel").setDescription("Optional staff log channel").setRequired(false))
+    .addIntegerOption(opt => opt.setName("claim_timeout_hours").setDescription("Optional winner claim timeout in hours").setRequired(false)),
 
   async execute(interaction, client) {
     if (!(await ensureAdmin(interaction))) return;
@@ -31,6 +33,8 @@ module.exports = {
     const endingMessage1 = interaction.options.getString("ending_message_1") || "";
     const endingMessage2 = interaction.options.getString("ending_message_2") || "";
     const winnerAnnouncement = interaction.options.getString("winner_announcement") || "";
+    const logChannel = interaction.options.getChannel("log_channel");
+    const claimTimeoutHours = interaction.options.getInteger("claim_timeout_hours") || 12;
 
     const template = await GiveawayTemplate.findOne({
       guildId: interaction.guild.id,
@@ -84,10 +88,15 @@ module.exports = {
       hostUserId: interaction.user.id,
       winnerDmMessage: template.winnerDmMessage,
       participantDmMessage: template.participantDmMessage,
+      requiredRoleId: template.requiredRoleId,
+      minAccountAgeDays: template.minAccountAgeDays,
       customEndingMessage1: endingMessage1,
       customEndingMessage2: endingMessage2,
       customWinnerAnnouncement: winnerAnnouncement,
+      logChannelId: logChannel?.id || "",
+      claimTimeoutMs: claimTimeoutHours * 60 * 60 * 1000,
       participants: [],
+      blockedUsers: [],
       winnerIds: [],
       status: "running",
       startedAt: Date.now(),
@@ -108,6 +117,8 @@ module.exports = {
 
     run.statusMessageId = statusMessage.id;
     await run.save();
+
+    await logToChannel(client, run, `✅ Giveaway started by <@${interaction.user.id}> for **${run.prize}** with token \`${run.templateToken}\`.`);
 
     await interaction.reply({
       content: "✅ Giveaway started!",

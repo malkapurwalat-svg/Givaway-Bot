@@ -68,6 +68,22 @@ const giveawayRunSchema = new mongoose.Schema(
       type: String,
       default: ""
     },
+    logChannelId: {
+      type: String,
+      default: ""
+    },
+    claimTimeoutMs: {
+      type: Number,
+      default: 12 * 60 * 60 * 1000
+    },
+    claimDeadline: {
+      type: Number,
+      default: 0
+    },
+    winnerClaimed: {
+      type: Boolean,
+      default: false
+    },
     participants: {
       type: [String],
       default: []
@@ -85,6 +101,14 @@ const giveawayRunSchema = new mongoose.Schema(
       enum: ["running", "ended", "cancelled"],
       default: "running",
       index: true
+    },
+    isPaused: {
+      type: Boolean,
+      default: false
+    },
+    pausedAt: {
+      type: Number,
+      default: 0
     },
     startedAt: {
       type: Number,

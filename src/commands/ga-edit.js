@@ -1,0 +1,122 @@
+const {
+  SlashCommandBuilder,
+  PermissionFlagsBits
+} = require("discord.js");
+
+const { ensureAdmin } = require("../utils/adminOnly");
+const { parseDuration } = require("../utils/duration");
+const GiveawayTemplate = require("../models/GiveawayTemplate");
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName("gxedit")
+    .setDescription("Edit a saved giveaway template")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addStringOption(opt =>
+      opt.setName("token").setDescription("Token to edit").setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt.setName("prize").setDescription("New prize").setRequired(false)
+    )
+    .addStringOption(opt =>
+      opt.setName("duration").setDescription("New duration, e.g. 24h").setRequired(false)
+    )
+    .addIntegerOption(opt =>
+      opt.setName("winners").setDescription("New winner count").setRequired(false)
+    )
+    .addChannelOption(opt =>
+      opt.setName("channel").setDescription("New giveaway channel").setRequired(false)
+    )
+    .addStringOption(opt =>
+      opt.setName("announcement").setDescription("New announcement").setRequired(false)
+    )
+    .addStringOption(opt =>
+      opt.setName("winner_dm").setDescription("New winner DM").setRequired(false)
+    )
+    .addStringOption(opt =>
+      opt.setName("participant_dm").setDescription("New participant DM").setRequired(false)
+    ),
+
+  async execute(interaction) {
+    if (!(await ensureAdmin(interaction))) return;
+
+    const token = interaction.options.getString("token");
+    const prize = interaction.options.getString("prize");
+    const durationInput = interaction.options.getString("duration");
+    const winners = interaction.options.getInteger("winners");
+    const channel = interaction.options.getChannel("channel");
+    const announcement = interaction.options.getString("announcement");
+    const winnerDM = interaction.options.getString("winner_dm");
+    const participantDM = interaction.options.getString("participant_dm");
+
+    const template = await GiveawayTemplate.findOne({
+      guildId: interaction.guild.id,
+      token
+    });
+
+    if (!template) {
+      return interaction.reply({
+        content: "❌ No giveaway template found with that token.",
+        ephemeral: true
+      });
+    }
+
+    let changed = false;
+
+    if (prize) {
+      template.prize = prize;
+      changed = true;
+    }
+
+    if (durationInput) {
+      try {
+        template.durationMs = parseDuration(durationInput);
+        changed = true;
+      } catch {
+        return interaction.reply({
+          content: "❌ Invalid duration. Example: 24h",
+          ephemeral: true
+        });
+      }
+    }
+
+    if (winners) {
+      template.winnerCount = winners;
+      changed = true;
+    }
+
+    if (channel) {
+      template.channelId = channel.id;
+      changed = true;
+    }
+
+    if (announcement) {
+      template.announcementMessage = announcement;
+      changed = true;
+    }
+
+    if (winnerDM) {
+      template.winnerDmMessage = winnerDM;
+      changed = true;
+    }
+
+    if (participantDM) {
+      template.participantDmMessage = participantDM;
+      changed = true;
+    }
+
+    if (!changed) {
+      return interaction.reply({
+        content: "❌ You did not provide anything to edit.",
+        ephemeral: true
+      });
+    }
+
+    await template.save();
+
+    await interaction.reply({
+      content: `✅ Giveaway template \`${token}\` updated successfully.`,
+      ephemeral: true
+    });
+  }
+};

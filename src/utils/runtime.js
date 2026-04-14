@@ -1,6 +1,7 @@
 const GiveawayRun = require("../models/GiveawayRun");
 const {
   buildLiveEmbed,
+  buildEndingWarningEmbed,
   buildWinnersEmbed,
   buildNoParticipantsEmbed,
   buildManualPickEmbed
@@ -29,7 +30,8 @@ async function updateLiveMessage(client, runId) {
   if (!msg) return false;
 
   await msg.edit({
-    embeds: [buildLiveEmbed(run)]
+    embeds: [buildLiveEmbed(run)],
+    components: msg.components
   }).catch(() => null);
 
   return run.status === "running";
@@ -47,13 +49,16 @@ async function sendWarning(client, runId, type) {
 
   const remaining = Math.max(0, run.endsAt - Date.now());
 
-  const defaultText =
-    type === 1
-      ? `@everyone ⏳ Giveaway for **{prize}** ends in **{time}**!`
-      : `@everyone 🚨 FINAL CALL! Only **{time}** left for **{prize}**!`;
+  const defaultText1 = `@everyone ⏳ The giveaway for **{prize}** is now entering its final phase! There is only **{time}** remaining before it officially ends, so if you haven’t joined yet, this is your moment to jump in and secure your chance to win. The competition is getting intense and more participants are joining every moment, making it harder to win as time passes. Don’t miss this opportunity to be one of the lucky winners. Head over to the giveaway and make sure you’ve entered properly before time runs out. Good luck to everyone participating 🍀🔥`;
+
+  const defaultText2 = `@everyone 🚨 FINAL CALL 🚨 The giveaway for **{prize}** is about to end in just **{time}**. This is your absolute last chance to enter before winners are selected. Once the timer hits zero, entries will be closed and winners will be chosen immediately. If you have not joined yet, you need to act right now or you will miss out completely. The stakes are high and only a few will win, so make sure you are part of it before it's too late. Good luck to everyone, and may the best participants win 🏆🔥`;
 
   const customText = type === 1 ? run.customEndingMessage1 : run.customEndingMessage2;
-  const finalText = renderText(customText && customText.trim() ? customText : defaultText, {
+  const template = customText && customText.trim()
+    ? customText
+    : (type === 1 ? defaultText1 : defaultText2);
+
+  const finalText = renderText(template, {
     time: formatDurationDetailed(remaining),
     prize: run.prize,
     winners: run.winnerCount,
@@ -61,7 +66,17 @@ async function sendWarning(client, runId, type) {
     winnerMentions: ""
   });
 
-  await channel.send({ content: finalText }).catch(() => null);
+  await channel.send({
+    content: finalText,
+    embeds: [
+      buildEndingWarningEmbed(
+        run.prize,
+        run.winnerCount,
+        formatDurationDetailed(remaining),
+        type
+      )
+    ]
+  }).catch(() => null);
 
   if (type === 1) run.warning1Sent = true;
   if (type === 2) run.warning2Sent = true;

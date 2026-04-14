@@ -40,6 +40,14 @@ const giveawayTemplateSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+    requiredRoleId: {
+      type: String,
+      default: ""
+    },
+    minAccountAgeDays: {
+      type: Number,
+      default: 0
+    },
     createdBy: {
       type: String,
       required: true

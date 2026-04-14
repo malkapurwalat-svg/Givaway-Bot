@@ -5,19 +5,15 @@ const {
 
 const { ensureAdmin } = require("../utils/adminOnly");
 const GiveawayRun = require("../models/GiveawayRun");
-const { pickWinnerManually } = require("../utils/giveawayRuntime");
+const { pickWinnerManually } = require("../utils/runtime");
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("gxpick")
-    .setDescription("Manually pick a winner for a running giveaway")
+    .setDescription("Manually pick a winner")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addStringOption(opt =>
-      opt.setName("message_id").setDescription("Giveaway message ID").setRequired(true)
-    )
-    .addUserOption(opt =>
-      opt.setName("user").setDescription("User to pick as winner").setRequired(true)
-    ),
+    .addStringOption(opt => opt.setName("message_id").setDescription("Announcement message ID").setRequired(true))
+    .addUserOption(opt => opt.setName("user").setDescription("User to pick").setRequired(true)),
 
   async execute(interaction, client) {
     if (!(await ensureAdmin(interaction))) return;

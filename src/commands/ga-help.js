@@ -25,6 +25,9 @@ module.exports = {
         { name: "/gxend", value: "End running giveaway" },
         { name: "/gxeroll", value: "Reroll ended giveaway" },
         { name: "/gxpick", value: "Manually pick winner" },
+        { name: "/gxpause", value: "Pause running giveaway" },
+        { name: "/gxresume", value: "Resume paused giveaway" },
+        { name: "/gxclaim", value: "Mark winner as claimed" },
         { name: "/gxhelp", value: "Show help" }
       )
       .setFooter({ text: "Supported placeholders: {time} {prize} {winners} {token} {winner_mentions}" });

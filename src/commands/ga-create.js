@@ -16,30 +16,14 @@ module.exports = {
     .setName("gxcreate")
     .setDescription("Create giveaway template")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addStringOption(opt =>
-      opt.setName("token").setDescription("Unique token").setRequired(true)
-    )
-    .addStringOption(opt =>
-      opt.setName("prize").setDescription("Prize name").setRequired(true)
-    )
-    .addStringOption(opt =>
-      opt.setName("duration").setDescription("e.g. 24h").setRequired(true)
-    )
-    .addIntegerOption(opt =>
-      opt.setName("winners").setDescription("Number of winners").setRequired(true)
-    )
-    .addChannelOption(opt =>
-      opt.setName("channel").setDescription("Giveaway channel").setRequired(true)
-    )
-    .addStringOption(opt =>
-      opt.setName("announcement").setDescription("Announcement message").setRequired(true)
-    )
-    .addStringOption(opt =>
-      opt.setName("winner_dm").setDescription("Winner DM message").setRequired(true)
-    )
-    .addStringOption(opt =>
-      opt.setName("participant_dm").setDescription("Participant DM message").setRequired(true)
-    ),
+    .addStringOption(opt => opt.setName("token").setDescription("Unique token").setRequired(true))
+    .addStringOption(opt => opt.setName("prize").setDescription("Prize").setRequired(true))
+    .addStringOption(opt => opt.setName("duration").setDescription("Example: 24h").setRequired(true))
+    .addIntegerOption(opt => opt.setName("winners").setDescription("Number of winners").setRequired(true))
+    .addChannelOption(opt => opt.setName("channel").setDescription("Giveaway channel").setRequired(true))
+    .addStringOption(opt => opt.setName("announcement").setDescription("Saved announcement").setRequired(true))
+    .addStringOption(opt => opt.setName("winner_dm").setDescription("Winner DM").setRequired(true))
+    .addStringOption(opt => opt.setName("participant_dm").setDescription("Participant DM").setRequired(true)),
 
   async execute(interaction) {
     if (!(await ensureAdmin(interaction))) return;
@@ -58,7 +42,7 @@ module.exports = {
       durationMs = parseDuration(durationInput);
     } catch {
       return interaction.reply({
-        content: "❌ Invalid duration. Example: 24h",
+        content: "❌ Invalid duration.",
         ephemeral: true
       });
     }
@@ -70,7 +54,7 @@ module.exports = {
 
     if (exists) {
       return interaction.reply({
-        content: "❌ Token already exists. Choose another token.",
+        content: "❌ Token already exists.",
         ephemeral: true
       });
     }
@@ -89,11 +73,11 @@ module.exports = {
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`gx_save_${token}`)
+        .setCustomId(`gxsave_${token}`)
         .setLabel("Save")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
-        .setCustomId("gx_cancel")
+        .setCustomId(`gxcancel_${token}`)
         .setLabel("Cancel")
         .setStyle(ButtonStyle.Danger)
     );
@@ -104,21 +88,29 @@ module.exports = {
       ephemeral: true
     });
 
-    const collector = interaction.channel.createMessageComponentCollector({
-      filter: i => i.user.id === interaction.user.id,
+    const message = await interaction.fetchReply();
+
+    const collector = message.createMessageComponentCollector({
       time: 60000
     });
 
-    collector.on("collect", async i => {
-      if (i.customId === "gx_cancel") {
-        return i.update({
+    collector.on("collect", async (btn) => {
+      if (btn.user.id !== interaction.user.id) {
+        return btn.reply({
+          content: "❌ This preview is not for you.",
+          ephemeral: true
+        });
+      }
+
+      if (btn.customId === `gxcancel_${token}`) {
+        return btn.update({
           content: "❌ Giveaway creation cancelled.",
           embeds: [],
           components: []
         });
       }
 
-      if (i.customId === `gx_save_${token}`) {
+      if (btn.customId === `gxsave_${token}`) {
         await GiveawayTemplate.create({
           guildId: interaction.guild.id,
           token,
@@ -132,8 +124,8 @@ module.exports = {
           createdBy: interaction.user.id
         });
 
-        return i.update({
-          content: `✅ Giveaway template saved with token ${token}.`,
+        return btn.update({
+          content: `✅ Giveaway template saved with token \`${token}\`.`,
           embeds: [],
           components: []
         });

@@ -41,21 +41,28 @@ function progressBar(percent) {
   return "█".repeat(filled) + "░".repeat(total - filled);
 }
 
-function getAnimatedTitle(percentLeft, frame) {
+function getAnimatedTitle(percentLeft, frame, run) {
+  if (run.status === "ended") return "🏁 GiveX Giveaway Finished";
+  if (run.isPaused) return "⏸️ GiveX Giveaway Paused";
+
   if (percentLeft > 0.75) return frame % 2 === 0 ? "🟢 GiveX Live Giveaway" : "✨ GiveX Live Giveaway";
   if (percentLeft > 0.4) return frame % 2 === 0 ? "🟡 GiveX Live Giveaway" : "⚡ GiveX Live Giveaway";
   if (percentLeft > 0.15) return frame % 2 === 0 ? "🟠 GiveX Live Giveaway" : "🔥 GiveX Live Giveaway";
   return frame % 2 === 0 ? "🔴 GiveX Live Giveaway" : "🚨 GiveX Live Giveaway";
 }
 
-function getAnimatedStatus(percentLeft) {
+function getAnimatedStatus(percentLeft, run) {
+  if (run.status === "ended") return "ENDED";
+  if (run.isPaused) return "PAUSED";
   if (percentLeft > 0.75) return "RUNNING STRONG";
   if (percentLeft > 0.4) return "MIDWAY";
   if (percentLeft > 0.15) return "ENDING SOON";
   return "FINAL MOMENTS";
 }
 
-function getStatusColor(percentLeft) {
+function getStatusColor(percentLeft, run) {
+  if (run.status === "ended") return 0x95a5a6;
+  if (run.isPaused) return 0x3498db;
   if (percentLeft > 0.75) return 0x2ecc71;
   if (percentLeft > 0.4) return 0xf1c40f;
   if (percentLeft > 0.15) return 0xe67e22;
@@ -84,21 +91,31 @@ function buildLiveEmbed(run) {
   const frame = Math.floor(now / 5000);
   const endUnix = Math.floor(run.endsAt / 1000);
 
-  return new EmbedBuilder()
-    .setColor(getStatusColor(percentLeft))
-    .setTitle(getAnimatedTitle(percentLeft, frame))
+  const embed = new EmbedBuilder()
+    .setColor(getStatusColor(percentLeft, run))
+    .setTitle(getAnimatedTitle(percentLeft, frame, run))
     .setDescription("Giveaway is active and updating live.")
     .addFields(
       { name: "🎁 Prize", value: run.prize, inline: false },
       { name: "🏆 Winners", value: String(run.winnerCount), inline: true },
       { name: "👥 Participants", value: String(run.participants.length), inline: true },
-      { name: "📌 Status", value: getAnimatedStatus(percentLeft), inline: true },
+      { name: "📌 Status", value: getAnimatedStatus(percentLeft, run), inline: true },
       { name: "🛡️ Requirements", value: buildRequirementText(run), inline: false },
       { name: "⏳ Time Remaining", value: run.status === "running" ? formatDurationDetailed(left) : "Ended", inline: false },
       { name: "📊 Progress", value: `${progressBar(percentLeft)} ${Math.round(percentLeft * 100)}%`, inline: false },
       { name: "🕒 Ends At", value: `<t:${endUnix}:F>`, inline: false }
     )
     .setFooter({ text: "Updates every 5 seconds" });
+
+  if (run.status === "ended" && !run.winnerClaimed && run.claimDeadline > 0) {
+    embed.addFields({
+      name: "📩 Claim Deadline",
+      value: `<t:${Math.floor(run.claimDeadline / 1000)}:F>`,
+      inline: false
+    });
+  }
+
+  return embed;
 }
 
 function buildEndingWarningEmbed(prize, winners, timeLeft, stage) {

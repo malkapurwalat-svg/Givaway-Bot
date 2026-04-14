@@ -51,6 +51,13 @@ function getAnimatedStatus(percentLeft) {
   return "FINAL MOMENTS";
 }
 
+function getStatusColor(percentLeft) {
+  if (percentLeft > 0.75) return 0x2ecc71;
+  if (percentLeft > 0.4) return 0xf1c40f;
+  if (percentLeft > 0.15) return 0xe67e22;
+  return 0xe74c3c;
+}
+
 function buildLiveEmbed(run) {
   const now = Date.now();
   const total = Math.max(1, run.endsAt - run.startedAt);
@@ -61,6 +68,7 @@ function buildLiveEmbed(run) {
   const endUnix = Math.floor(run.endsAt / 1000);
 
   return new EmbedBuilder()
+    .setColor(getStatusColor(percentLeft))
     .setTitle(getAnimatedTitle(percentLeft, frame))
     .setDescription("Giveaway is active and updating live.")
     .addFields(
@@ -75,8 +83,38 @@ function buildLiveEmbed(run) {
     .setFooter({ text: "Updates every 5 seconds" });
 }
 
+function buildEndingWarningEmbed(prize, winners, timeLeft, stage) {
+  let color = 0xf1c40f;
+  let title = "⏳ Giveaway Update";
+  let description = "The giveaway is moving into its final phase.";
+
+  if (stage === 1) {
+    color = 0xf1c40f;
+    title = "🟡 Giveaway Halfway Warning";
+    description = "The giveaway has reached the halfway mark.";
+  }
+
+  if (stage === 2) {
+    color = 0xe74c3c;
+    title = "🔴 Final Countdown";
+    description = "This is the final stretch before the giveaway ends.";
+  }
+
+  return new EmbedBuilder()
+    .setColor(color)
+    .setTitle(title)
+    .setDescription(description)
+    .addFields(
+      { name: "🎁 Prize", value: prize, inline: false },
+      { name: "🏆 Winners", value: String(winners), inline: true },
+      { name: "⏳ Time Left", value: timeLeft, inline: true }
+    )
+    .setFooter({ text: "Join before time runs out." });
+}
+
 function buildWinnersEmbed(prize, winners) {
   return new EmbedBuilder()
+    .setColor(0x9b59b6)
     .setTitle("🎉 Giveaway Ended!")
     .setDescription("The winners have been selected.")
     .addFields(
@@ -93,6 +131,7 @@ function buildWinnersEmbed(prize, winners) {
 
 function buildNoParticipantsEmbed(prize) {
   return new EmbedBuilder()
+    .setColor(0x95a5a6)
     .setTitle("❌ Giveaway Ended")
     .setDescription("No valid participants entered this giveaway.")
     .addFields({
@@ -103,6 +142,7 @@ function buildNoParticipantsEmbed(prize) {
 
 function buildManualPickEmbed(prize, chosenUser) {
   return new EmbedBuilder()
+    .setColor(0x3498db)
     .setTitle("👑 Management Picked a Winner")
     .setDescription("A winner has been chosen by management.")
     .addFields(
@@ -114,6 +154,7 @@ function buildManualPickEmbed(prize, chosenUser) {
 module.exports = {
   buildTemplatePreviewEmbed,
   buildLiveEmbed,
+  buildEndingWarningEmbed,
   buildWinnersEmbed,
   buildNoParticipantsEmbed,
   buildManualPickEmbed

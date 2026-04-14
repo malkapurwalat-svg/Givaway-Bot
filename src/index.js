@@ -6,7 +6,10 @@ const mongoose = require("mongoose");
 const {
   Client,
   Collection,
-  GatewayIntentBits
+  GatewayIntentBits,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
 } = require("discord.js");
 
 const GiveawayRun = require("./models/GiveawayRun");
@@ -16,6 +19,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.DirectMessages
   ]
 });
@@ -66,6 +70,43 @@ client.on("interactionCreate", async (interaction) => {
         });
       }
 
+      const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+      if (!member) {
+        return interaction.reply({
+          content: "❌ Could not verify your server membership.",
+          ephemeral: true
+        });
+      }
+
+      if (run.requiredRoleId && !member.roles.cache.has(run.requiredRoleId)) {
+        if (!run.blockedUsers.includes(interaction.user.id)) {
+          run.blockedUsers.push(interaction.user.id);
+          await run.save();
+        }
+
+        return interaction.reply({
+          content: "❌ You do not have the required role for this giveaway.",
+          ephemeral: true
+        });
+      }
+
+      if (run.minAccountAgeDays && run.minAccountAgeDays > 0) {
+        const minAgeMs = run.minAccountAgeDays * 24 * 60 * 60 * 1000;
+        const accountAgeMs = Date.now() - interaction.user.createdTimestamp;
+
+        if (accountAgeMs < minAgeMs) {
+          if (!run.blockedUsers.includes(interaction.user.id)) {
+            run.blockedUsers.push(interaction.user.id);
+            await run.save();
+          }
+
+          return interaction.reply({
+            content: `❌ Your account must be at least ${run.minAccountAgeDays} day(s) old to join this giveaway.`,
+            ephemeral: true
+          });
+        }
+      }
+
       run.participants.push(interaction.user.id);
       await run.save();
 
@@ -74,7 +115,8 @@ client.on("interactionCreate", async (interaction) => {
         const statusMessage = await channel.messages.fetch(run.statusMessageId).catch(() => null);
         if (statusMessage) {
           await statusMessage.edit({
-            embeds: [buildLiveEmbed(run)]
+            embeds: [buildLiveEmbed(run)],
+            components: statusMessage.components
           }).catch(() => null);
         }
       }

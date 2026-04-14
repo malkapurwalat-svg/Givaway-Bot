@@ -9,7 +9,8 @@ const giveawayRunSchema = new mongoose.Schema(
     },
     templateToken: {
       type: String,
-      required: true
+      required: true,
+      index: true
     },
     prize: {
       type: String,
@@ -21,13 +22,18 @@ const giveawayRunSchema = new mongoose.Schema(
     },
     winnerCount: {
       type: Number,
-      required: true
+      required: true,
+      default: 1
     },
     channelId: {
       type: String,
       required: true
     },
     messageId: {
+      type: String,
+      required: true
+    },
+    statusMessageId: {
       type: String,
       default: null
     },
@@ -47,16 +53,41 @@ const giveawayRunSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+    customEndingMessage1: {
+      type: String,
+      default: ""
+    },
+    customEndingMessage2: {
+      type: String,
+      default: ""
+    },
+    customWinnerAnnouncement: {
+      type: String,
+      default: ""
+    },
+    warning1Sent: {
+      type: Boolean,
+      default: false
+    },
+    warning2Sent: {
+      type: Boolean,
+      default: false
+    },
     status: {
       type: String,
-      enum: ["scheduled", "running", "ended", "cancelled"],
-      default: "scheduled"
+      enum: ["running", "ended", "cancelled"],
+      default: "running",
+      index: true
     },
     startedAt: {
       type: Date,
-      default: null
+      default: Date.now
     },
     endsAt: {
+      type: Date,
+      required: true
+    },
+    endedAt: {
       type: Date,
       default: null
     },

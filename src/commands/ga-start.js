@@ -7,7 +7,7 @@ const { ensureAdmin } = require("../utils/adminOnly");
 const GiveawayTemplate = require("../models/GiveawayTemplate");
 const GiveawayRun = require("../models/GiveawayRun");
 const {
-  buildStatusMessage,
+  buildStatusEmbed,
   scheduleGiveawayLifecycle
 } = require("../utils/giveawayRuntime");
 
@@ -121,12 +121,9 @@ module.exports = {
     });
 
     await interaction.reply({
-      content: buildStatusMessage(run)
+      embeds: [buildStatusEmbed(run)],
+      ephemeral: true
     });
-
-    const statusMessage = await interaction.fetchReply();
-    run.statusMessageId = statusMessage.id;
-    await run.save();
 
     scheduleGiveawayLifecycle(client, run._id, run.durationMs);
   }

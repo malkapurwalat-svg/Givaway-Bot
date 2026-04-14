@@ -9,11 +9,9 @@ const GiveawayRun = require("../models/GiveawayRun");
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("gxeroll")
-    .setDescription("Reroll a giveaway winner")
+    .setDescription("Reroll a completed giveaway")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addStringOption(opt =>
-      opt.setName("message_id").setDescription("Giveaway message ID").setRequired(true)
-    ),
+    .addStringOption(opt => opt.setName("message_id").setDescription("Announcement message ID").setRequired(true)),
 
   async execute(interaction, client) {
     if (!(await ensureAdmin(interaction))) return;
@@ -21,6 +19,7 @@ module.exports = {
     const messageId = interaction.options.getString("message_id");
 
     const run = await GiveawayRun.findOne({
+      guildId: interaction.guild.id,
       messageId,
       status: "ended"
     });
@@ -32,47 +31,33 @@ module.exports = {
       });
     }
 
+    const possible = run.participants.filter(id => !run.winnerIds.includes(id));
+    if (!possible.length) {
+      return interaction.reply({
+        content: "❌ No participants left to reroll.",
+        ephemeral: true
+      });
+    }
+
+    const chosenId = possible[Math.floor(Math.random() * possible.length)];
+    const chosenUser = await client.users.fetch(chosenId).catch(() => null);
+
+    if (!chosenUser) {
+      return interaction.reply({
+        content: "❌ Could not fetch the rerolled user.",
+        ephemeral: true
+      });
+    }
+
+    run.winnerIds.push(chosenId);
+    await run.save();
+
     const channel = await client.channels.fetch(run.channelId).catch(() => null);
-    if (!channel || !channel.isTextBased()) {
-      return interaction.reply({
-        content: "❌ Giveaway channel not found.",
-        ephemeral: true
-      });
+    if (channel && channel.isTextBased()) {
+      await channel.send(`🔄 **Rerolled Winner:** <@${chosenId}>`).catch(() => null);
     }
 
-    const message = await channel.messages.fetch(run.messageId).catch(() => null);
-    if (!message) {
-      return interaction.reply({
-        content: "❌ Giveaway message not found.",
-        ephemeral: true
-      });
-    }
-
-    const reaction = message.reactions.cache.get("🎉");
-
-    if (!reaction) {
-      return interaction.reply({
-        content: "❌ No participants.",
-        ephemeral: true
-      });
-    }
-
-    const users = await reaction.users.fetch();
-    const participants = users.filter(u => !u.bot);
-
-    if (participants.size === 0) {
-      return interaction.reply({
-        content: "❌ No valid participants.",
-        ephemeral: true
-      });
-    }
-
-    const arr = [...participants.values()];
-    const winner = arr[Math.floor(Math.random() * arr.length)];
-
-    await channel.send(`🔄 **Rerolled Winner!**\n🏆 New Winner: <@${winner.id}>`);
-
-    await winner.send(run.winnerDmMessage).catch(() => null);
+    await chosenUser.send(run.winnerDmMessage).catch(() => null);
 
     await interaction.reply({
       content: "✅ Rerolled successfully.",

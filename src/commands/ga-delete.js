@@ -9,39 +9,29 @@ const GiveawayTemplate = require("../models/GiveawayTemplate");
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("gxdelete")
-    .setDescription("Delete a saved giveaway template and free its token")
+    .setDescription("Delete a saved giveaway template")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addStringOption(option =>
-      option
-        .setName("token")
-        .setDescription("Saved giveaway token to delete")
-        .setRequired(true)
-    ),
+    .addStringOption(opt => opt.setName("token").setDescription("Saved token").setRequired(true)),
 
   async execute(interaction) {
     if (!(await ensureAdmin(interaction))) return;
 
     const token = interaction.options.getString("token");
 
-    const template = await GiveawayTemplate.findOne({
+    const deleted = await GiveawayTemplate.findOneAndDelete({
       guildId: interaction.guild.id,
       token
     });
 
-    if (!template) {
+    if (!deleted) {
       return interaction.reply({
-        content: "❌ No saved giveaway template found with that token.",
+        content: "❌ No template found with that token.",
         ephemeral: true
       });
     }
 
-    await GiveawayTemplate.deleteOne({
-      guildId: interaction.guild.id,
-      token
-    });
-
     await interaction.reply({
-      content: `✅ Giveaway template with token ${token} was deleted. That token is now free to use again.`,
+      content: `✅ Giveaway template \`${token}\` deleted. That token is free again.`,
       ephemeral: true
     });
   }

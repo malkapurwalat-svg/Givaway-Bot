@@ -17,6 +17,16 @@ function buildTemplatePreviewEmbed(data) {
       { name: "Winners", value: String(data.winnerCount), inline: true },
       { name: "Duration", value: formatDuration(data.durationMs), inline: true },
       { name: "Channel", value: `<#${data.channelId}>`, inline: true },
+      {
+        name: "Required Role",
+        value: data.requiredRoleId ? `<@&${data.requiredRoleId}>` : "None",
+        inline: true
+      },
+      {
+        name: "Min Account Age",
+        value: `${data.minAccountAgeDays || 0} day(s)`,
+        inline: true
+      },
       { name: "Created By", value: `<@${data.createdBy}>`, inline: true },
       { name: "Announcement Message", value: truncateBlock(data.announcementMessage) },
       { name: "Winner DM", value: truncateBlock(data.winnerDmMessage) },
@@ -32,15 +42,9 @@ function progressBar(percent) {
 }
 
 function getAnimatedTitle(percentLeft, frame) {
-  if (percentLeft > 0.75) {
-    return frame % 2 === 0 ? "🟢 GiveX Live Giveaway" : "✨ GiveX Live Giveaway";
-  }
-  if (percentLeft > 0.4) {
-    return frame % 2 === 0 ? "🟡 GiveX Live Giveaway" : "⚡ GiveX Live Giveaway";
-  }
-  if (percentLeft > 0.15) {
-    return frame % 2 === 0 ? "🟠 GiveX Live Giveaway" : "🔥 GiveX Live Giveaway";
-  }
+  if (percentLeft > 0.75) return frame % 2 === 0 ? "🟢 GiveX Live Giveaway" : "✨ GiveX Live Giveaway";
+  if (percentLeft > 0.4) return frame % 2 === 0 ? "🟡 GiveX Live Giveaway" : "⚡ GiveX Live Giveaway";
+  if (percentLeft > 0.15) return frame % 2 === 0 ? "🟠 GiveX Live Giveaway" : "🔥 GiveX Live Giveaway";
   return frame % 2 === 0 ? "🔴 GiveX Live Giveaway" : "🚨 GiveX Live Giveaway";
 }
 
@@ -58,13 +62,26 @@ function getStatusColor(percentLeft) {
   return 0xe74c3c;
 }
 
+function buildRequirementText(run) {
+  const parts = [];
+
+  if (run.requiredRoleId) {
+    parts.push(`Role: <@&${run.requiredRoleId}>`);
+  }
+
+  if (run.minAccountAgeDays && run.minAccountAgeDays > 0) {
+    parts.push(`Account Age: ${run.minAccountAgeDays}+ day(s)`);
+  }
+
+  return parts.length ? parts.join("\n") : "No requirements";
+}
+
 function buildLiveEmbed(run) {
   const now = Date.now();
   const total = Math.max(1, run.endsAt - run.startedAt);
   const left = Math.max(0, run.endsAt - now);
   const percentLeft = left / total;
   const frame = Math.floor(now / 5000);
-
   const endUnix = Math.floor(run.endsAt / 1000);
 
   return new EmbedBuilder()
@@ -76,6 +93,7 @@ function buildLiveEmbed(run) {
       { name: "🏆 Winners", value: String(run.winnerCount), inline: true },
       { name: "👥 Participants", value: String(run.participants.length), inline: true },
       { name: "📌 Status", value: getAnimatedStatus(percentLeft), inline: true },
+      { name: "🛡️ Requirements", value: buildRequirementText(run), inline: false },
       { name: "⏳ Time Remaining", value: run.status === "running" ? formatDurationDetailed(left) : "Ended", inline: false },
       { name: "📊 Progress", value: `${progressBar(percentLeft)} ${Math.round(percentLeft * 100)}%`, inline: false },
       { name: "🕒 Ends At", value: `<t:${endUnix}:F>`, inline: false }
@@ -118,14 +136,8 @@ function buildWinnersEmbed(prize, winners) {
     .setTitle("🎉 Giveaway Ended!")
     .setDescription("The winners have been selected.")
     .addFields(
-      {
-        name: "🏆 Winner(s)",
-        value: winners.map(user => `<@${user.id}>`).join("\n")
-      },
-      {
-        name: "🎁 Prize",
-        value: prize
-      }
+      { name: "🏆 Winner(s)", value: winners.map(user => `<@${user.id}>`).join("\n") },
+      { name: "🎁 Prize", value: prize }
     );
 }
 

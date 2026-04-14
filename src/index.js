@@ -9,8 +9,8 @@ const {
   GatewayIntentBits
 } = require("discord.js");
 
-const GiveawayRun = require("./src/models/GiveawayRun");
-const { buildLiveEmbed } = require("./src/utils/embeds");
+const GiveawayRun = require("./models/GiveawayRun");
+const { buildLiveEmbed } = require("./utils/embeds");
 
 const client = new Client({
   intents: [
@@ -22,7 +22,7 @@ const client = new Client({
 
 client.commands = new Collection();
 
-const commandsPath = path.join(__dirname, "src", "commands");
+const commandsPath = path.join(__dirname, "commands");
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith(".js"));
 
 for (const file of commandFiles) {

@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { formatDuration } = require("./duration");
+const { formatDuration, formatDurationDetailed } = require("./duration");
 
 function truncateBlock(text) {
   if (!text) return "*empty*";
@@ -25,17 +25,105 @@ function buildTemplatePreviewEmbed(data) {
     .setFooter({ text: "Only you can see this preview." });
 }
 
+function getAnimatedStyle(percentLeft, frame) {
+  if (percentLeft > 0.75) {
+    return {
+      title: frame % 2 === 0 ? "🟢 GiveX Live Giveaway" : "✨ GiveX Live Giveaway",
+      status: "RUNNING STRONG"
+    };
+  }
+
+  if (percentLeft > 0.4) {
+    return {
+      title: frame % 2 === 0 ? "🟡 GiveX Live Giveaway" : "⚡ GiveX Live Giveaway",
+      status: "MIDWAY"
+    };
+  }
+
+  if (percentLeft > 0.15) {
+    return {
+      title: frame % 2 === 0 ? "🟠 GiveX Live Giveaway" : "🔥 GiveX Live Giveaway",
+      status: "ENDING SOON"
+    };
+  }
+
+  return {
+    title: frame % 2 === 0 ? "🔴 GiveX Live Giveaway" : "🚨 GiveX Live Giveaway",
+    status: "FINAL MOMENTS"
+  };
+}
+
+function buildProgressBar(percentLeft) {
+  const total = 10;
+  const filled = Math.max(0, Math.min(total, Math.round(percentLeft * total)));
+  const empty = total - filled;
+  return `█`.repeat(filled) + `░`.repeat(empty);
+}
+
+function buildStatusEmbed(run) {
+  const now = Date.now();
+  const endMs = new Date(run.endsAt).getTime();
+  const startMs = new Date(run.startedAt).getTime();
+
+  const totalMs = Math.max(1, endMs - startMs);
+  const remainingMs = Math.max(0, endMs - now);
+  const percentLeft = remainingMs / totalMs;
+
+  const frame = Math.floor(now / (2 * 60 * 1000));
+  const style = getAnimatedStyle(percentLeft, frame);
+  const progress = buildProgressBar(percentLeft);
+
+  const endUnix = Math.floor(endMs / 1000);
+
+  return new EmbedBuilder()
+    .setTitle(style.title)
+    .setDescription("Your giveaway is active and being tracked live.")
+    .addFields(
+      {
+        name: "🎁 Prize",
+        value: run.prize,
+        inline: false
+      },
+      {
+        name: "🏆 Winners",
+        value: String(run.winnerCount),
+        inline: true
+      },
+      {
+        name: "📌 Status",
+        value: style.status,
+        inline: true
+      },
+      {
+        name: "⏳ Time Remaining",
+        value: run.status === "running" ? formatDurationDetailed(remainingMs) : "Ended",
+        inline: false
+      },
+      {
+        name: "📊 Progress",
+        value: `${progress} ${Math.round(percentLeft * 100)}%`,
+        inline: false
+      },
+      {
+        name: "🕒 Ends At",
+        value: `<t:${endUnix}:F>`,
+        inline: false
+      }
+    )
+    .setFooter({ text: "This panel updates automatically every 2 minutes." });
+}
+
 function buildWinnersEmbed(prize, winners) {
   return new EmbedBuilder()
     .setTitle("🎉 Giveaway Ended!")
     .setDescription("The winners have been selected.")
     .addFields(
       {
-        name: "Winner(s)",
+        name: "🏆 Winner(s)",
         value: winners.map(user => `<@${user.id}>`).join("\n")
       },
       {
-        name: "Prize",
+        name: "🎁 Prize",
         value: prize
       }
     )
@@ -47,7 +135,7 @@ function buildNoParticipantsEmbed(prize) {
     .setTitle("❌ Giveaway Ended")
     .setDescription("No valid participants entered this giveaway.")
     .addFields({
-      name: "Prize",
+      name: "🎁 Prize",
       value: prize
     });
 }
@@ -58,11 +146,11 @@ function buildManualPickEmbed(prize, chosenUser) {
     .setDescription("A winner has been chosen by the management team.")
     .addFields(
       {
-        name: "Winner",
+        name: "🏆 Winner",
         value: `<@${chosenUser.id}>`
       },
       {
-        name: "Prize",
+        name: "🎁 Prize",
         value: prize
       }
     );
@@ -70,6 +158,7 @@ function buildManualPickEmbed(prize, chosenUser) {
 
 module.exports = {
   buildTemplatePreviewEmbed,
+  buildStatusEmbed,
   buildWinnersEmbed,
   buildNoParticipantsEmbed,
   buildManualPickEmbed

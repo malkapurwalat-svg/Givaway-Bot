@@ -21,6 +21,8 @@ module.exports = {
     .addStringOption(opt => opt.setName("duration").setDescription("Example: 24h").setRequired(true))
     .addIntegerOption(opt => opt.setName("winners").setDescription("Number of winners").setRequired(true))
     .addChannelOption(opt => opt.setName("channel").setDescription("Giveaway channel").setRequired(true))
+    .addRoleOption(opt => opt.setName("required_role").setDescription("Optional required role").setRequired(false))
+    .addIntegerOption(opt => opt.setName("min_account_age_days").setDescription("Optional minimum account age in days").setRequired(false))
     .addStringOption(opt => opt.setName("announcement").setDescription("Saved announcement").setRequired(true))
     .addStringOption(opt => opt.setName("winner_dm").setDescription("Winner DM").setRequired(true))
     .addStringOption(opt => opt.setName("participant_dm").setDescription("Participant DM").setRequired(true)),
@@ -33,6 +35,8 @@ module.exports = {
     const durationInput = interaction.options.getString("duration");
     const winners = interaction.options.getInteger("winners");
     const channel = interaction.options.getChannel("channel");
+    const requiredRole = interaction.options.getRole("required_role");
+    const minAccountAgeDays = interaction.options.getInteger("min_account_age_days") || 0;
     const announcement = interaction.options.getString("announcement");
     const winnerDM = interaction.options.getString("winner_dm");
     const participantDM = interaction.options.getString("participant_dm");
@@ -65,6 +69,8 @@ module.exports = {
       durationMs,
       winnerCount: winners,
       channelId: channel.id,
+      requiredRoleId: requiredRole?.id || "",
+      minAccountAgeDays,
       announcementMessage: announcement,
       winnerDmMessage: winnerDM,
       participantDmMessage: participantDM,
@@ -121,6 +127,8 @@ module.exports = {
           announcementMessage: announcement,
           winnerDmMessage: winnerDM,
           participantDmMessage: participantDM,
+          requiredRoleId: requiredRole?.id || "",
+          minAccountAgeDays,
           createdBy: interaction.user.id
         });
 

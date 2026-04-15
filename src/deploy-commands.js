@@ -9,17 +9,23 @@ const commandsPath = path.join(__dirname, "commands");
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith(".js"));
 
 for (const file of commandFiles) {
-  const command = require(path.join(commandsPath, file));
-  if (command.data) {
-    commands.push(command.data.toJSON());
+  const filePath = path.join(commandsPath, file);
+  const command = require(filePath);
+
+  if (!command.data) {
+    console.log(`Skipping ${file} because it has no data`);
+    continue;
   }
+
+  commands.push(command.data.toJSON());
+  console.log(`Loaded command: ${command.data.name}`);
 }
 
 const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
   try {
-    console.log("🔄 Registering slash commands...");
+    console.log(`🔄 Registering ${commands.length} slash commands...`);
 
     await rest.put(
       Routes.applicationGuildCommands(
@@ -29,7 +35,7 @@ const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
       { body: commands }
     );
 
-    console.log("✅ Slash commands registered.");
+    console.log("✅ Slash commands registered successfully.");
   } catch (error) {
     console.error("❌ Deploy error:", error);
   }

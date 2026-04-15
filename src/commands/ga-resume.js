@@ -5,7 +5,7 @@ const {
 
 const { ensureAdmin } = require("../utils/adminOnly");
 const GiveawayRun = require("../models/GiveawayRun");
-const { logToChannel } = require("../utils/runtime");
+const { resumeGiveawayLifecycle } = require("../utils/runtime");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -39,13 +39,7 @@ module.exports = {
       });
     }
 
-    const pausedDuration = Date.now() - run.pausedAt;
-    run.endsAt += pausedDuration;
-    run.isPaused = false;
-    run.pausedAt = 0;
-    await run.save();
-
-    await logToChannel(client, run, `▶️ Giveaway resumed by <@${interaction.user.id}>.`);
+    await resumeGiveawayLifecycle(client, run);
 
     await interaction.reply({
       content: "✅ Giveaway resumed.",

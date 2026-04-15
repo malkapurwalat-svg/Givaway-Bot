@@ -15,6 +15,8 @@ module.exports = {
       .setTitle("📖 GiveX Help")
       .setDescription("Main commands")
       .addFields(
+        { name: "/gxsetlogchannel", value: "Set giveaway log channel" },
+        { name: "/gxentryroles", value: "Set bonus entry roles using role:entries" },
         { name: "/gxcreate", value: "Create template" },
         { name: "/gxedit", value: "Edit template" },
         { name: "/gxview", value: "View template" },
@@ -27,8 +29,7 @@ module.exports = {
         { name: "/gxpick", value: "Manually pick winner" },
         { name: "/gxpause", value: "Pause running giveaway" },
         { name: "/gxresume", value: "Resume paused giveaway" },
-        { name: "/gxclaim", value: "Mark winner as claimed" },
-        { name: "/gxhelp", value: "Show help" }
+        { name: "/gxclaim", value: "Mark winner as claimed" }
       )
       .setFooter({ text: "Supported placeholders: {time} {prize} {winners} {token} {winner_mentions}" });
 

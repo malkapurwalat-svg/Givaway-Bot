@@ -42,7 +42,7 @@ module.exports = {
     run.winnerClaimed = true;
     await run.save();
 
-    await logToChannel(client, run, `✅ Winner marked as claimed by <@${interaction.user.id}>.`);
+    await logToChannel(client, run, `✅ Winner marked as claimed by <@${interaction.user.id}> for **${run.prize}**.`);
 
     await interaction.reply({
       content: "✅ Winner marked as claimed.",

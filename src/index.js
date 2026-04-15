@@ -6,13 +6,11 @@ const mongoose = require("mongoose");
 const {
   Client,
   Collection,
-  GatewayIntentBits,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle
+  GatewayIntentBits
 } = require("discord.js");
 
 const GiveawayRun = require("./models/GiveawayRun");
+const GuildConfig = require("./models/GuildConfig");
 const { buildLiveEmbed } = require("./utils/embeds");
 
 const client = new Client({
@@ -45,7 +43,6 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (!command) return;
-
       await command.execute(interaction, client);
       return;
     }
@@ -56,14 +53,28 @@ client.on("interactionCreate", async (interaction) => {
       const runId = interaction.customId.split("_")[1];
       const run = await GiveawayRun.findById(runId);
 
-      if (!run || run.status !== "running") {
+      if (!run) {
+        return interaction.reply({
+          content: "❌ Giveaway not found.",
+          ephemeral: true
+        });
+      }
+
+      if (run.status !== "running") {
         return interaction.reply({
           content: "❌ This giveaway is not active anymore.",
           ephemeral: true
         });
       }
 
-      if (run.participants.includes(interaction.user.id)) {
+      if (run.isPaused) {
+        return interaction.reply({
+          content: "❌ This giveaway is paused right now.",
+          ephemeral: true
+        });
+      }
+
+      if (run.joinedUserIds.includes(interaction.user.id)) {
         return interaction.reply({
           content: "❌ You already joined this giveaway.",
           ephemeral: true
@@ -73,9 +84,26 @@ client.on("interactionCreate", async (interaction) => {
       const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
       if (!member) {
         return interaction.reply({
-          content: "❌ Could not verify your server membership.",
+          content: "❌ Could not verify your membership.",
           ephemeral: true
         });
+      }
+
+      if (!run.staffParticipation) {
+        const isStaff =
+          member.permissions.has("Administrator") ||
+          member.permissions.has("ManageGuild");
+        if (isStaff) {
+          if (!run.blockedUsers.includes(interaction.user.id)) {
+            run.blockedUsers.push(interaction.user.id);
+            await run.save();
+          }
+
+          return interaction.reply({
+            content: "❌ Staff members are not allowed to participate in this giveaway.",
+            ephemeral: true
+          });
+        }
       }
 
       if (run.requiredRoleId && !member.roles.cache.has(run.requiredRoleId)) {
@@ -90,24 +118,41 @@ client.on("interactionCreate", async (interaction) => {
         });
       }
 
-      if (run.minAccountAgeDays && run.minAccountAgeDays > 0) {
-        const minAgeMs = run.minAccountAgeDays * 24 * 60 * 60 * 1000;
+      const minAgeDays = typeof run.minAccountAgeDays === "number" ? run.minAccountAgeDays : 3;
+      if (minAgeDays > 0) {
         const accountAgeMs = Date.now() - interaction.user.createdTimestamp;
+        const requiredMs = minAgeDays * 24 * 60 * 60 * 1000;
 
-        if (accountAgeMs < minAgeMs) {
+        if (accountAgeMs < requiredMs) {
           if (!run.blockedUsers.includes(interaction.user.id)) {
             run.blockedUsers.push(interaction.user.id);
             await run.save();
           }
 
           return interaction.reply({
-            content: `❌ Your account must be at least ${run.minAccountAgeDays} day(s) old to join this giveaway.`,
+            content: `❌ Your account must be at least ${minAgeDays} day(s) old to join this giveaway.`,
             ephemeral: true
           });
         }
       }
 
-      run.participants.push(interaction.user.id);
+      const guildConfig = await GuildConfig.findOne({ guildId: interaction.guild.id });
+      let entriesToAdd = 1;
+
+      if (guildConfig?.bonusEntryRoles?.length) {
+        for (const config of guildConfig.bonusEntryRoles) {
+          if (member.roles.cache.has(config.roleId)) {
+            entriesToAdd = Math.max(entriesToAdd, config.entries);
+          }
+        }
+      }
+
+      run.joinedUserIds.push(interaction.user.id);
+
+      for (let i = 0; i < entriesToAdd; i++) {
+        run.participants.push(interaction.user.id);
+      }
+
       await run.save();
 
       const channel = await client.channels.fetch(run.channelId).catch(() => null);
@@ -124,7 +169,7 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.user.send(run.participantDmMessage).catch(() => null);
 
       return interaction.reply({
-        content: "✅ You joined the giveaway!",
+        content: `✅ You joined the giveaway! Your entry count for this giveaway is **${entriesToAdd}**.`,
         ephemeral: true
       });
     }

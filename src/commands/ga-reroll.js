@@ -5,6 +5,7 @@ const {
 
 const { ensureAdmin } = require("../utils/adminOnly");
 const GiveawayRun = require("../models/GiveawayRun");
+const { logToChannel } = require("../utils/runtime");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -58,6 +59,7 @@ module.exports = {
     }
 
     await chosenUser.send(run.winnerDmMessage).catch(() => null);
+    await logToChannel(client, run, `🔄 Rerolled winner for **${run.prize}**: <@${chosenId}>`);
 
     await interaction.reply({
       content: "✅ Rerolled successfully.",

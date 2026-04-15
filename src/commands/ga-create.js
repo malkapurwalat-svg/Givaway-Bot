@@ -16,13 +16,23 @@ module.exports = {
     .setName("gxcreate")
     .setDescription("Create giveaway template")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addStringOption(opt => opt.setName("token").setDescription("Unique token").setRequired(true))
-    .addStringOption(opt => opt.setName("prize").setDescription("Prize").setRequired(true))
-    .addStringOption(opt => opt.setName("duration").setDescription("Example: 24h").setRequired(true))
-    .addIntegerOption(opt => opt.setName("winners").setDescription("Number of winners").setRequired(true))
-    .addChannelOption(opt => opt.setName("channel").setDescription("Giveaway channel").setRequired(true))
-    .addRoleOption(opt => opt.setName("required_role").setDescription("Optional required role").setRequired(false))
-    .addIntegerOption(opt => opt.setName("min_account_age_days").setDescription("Minimum account age in days").setRequired(false))
+
+    // REQUIRED FIRST
+    .addStringOption(opt =>
+      opt.setName("token").setDescription("Unique token").setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt.setName("prize").setDescription("Prize").setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt.setName("duration").setDescription("Example: 24h").setRequired(true)
+    )
+    .addIntegerOption(opt =>
+      opt.setName("winners").setDescription("Number of winners").setRequired(true)
+    )
+    .addChannelOption(opt =>
+      opt.setName("channel").setDescription("Giveaway channel").setRequired(true)
+    )
     .addStringOption(opt =>
       opt
         .setName("staff_participation")
@@ -33,10 +43,26 @@ module.exports = {
         )
         .setRequired(true)
     )
-    .addStringOption(opt => opt.setName("host_display").setDescription("Custom hosted by text").setRequired(false))
-    .addStringOption(opt => opt.setName("announcement").setDescription("Saved announcement").setRequired(true))
-    .addStringOption(opt => opt.setName("winner_dm").setDescription("Winner DM").setRequired(true))
-    .addStringOption(opt => opt.setName("participant_dm").setDescription("Participant DM").setRequired(true)),
+    .addStringOption(opt =>
+      opt.setName("announcement").setDescription("Saved announcement").setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt.setName("winner_dm").setDescription("Winner DM").setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt.setName("participant_dm").setDescription("Participant DM").setRequired(true)
+    )
+
+    // OPTIONAL AFTER
+    .addRoleOption(opt =>
+      opt.setName("required_role").setDescription("Optional required role").setRequired(false)
+    )
+    .addIntegerOption(opt =>
+      opt.setName("min_account_age_days").setDescription("Minimum account age in days").setRequired(false)
+    )
+    .addStringOption(opt =>
+      opt.setName("host_display").setDescription("Custom hosted by text").setRequired(false)
+    ),
 
   async execute(interaction) {
     if (!(await ensureAdmin(interaction))) return;

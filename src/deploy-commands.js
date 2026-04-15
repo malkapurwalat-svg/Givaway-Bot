@@ -10,21 +10,37 @@ const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith("
 
 for (const file of commandFiles) {
   const filePath = path.join(commandsPath, file);
-  const command = require(filePath);
 
-  if (!command.data) {
-    console.log(`Skipping ${file} because it has no data`);
-    continue;
+  try {
+    const command = require(filePath);
+
+    if (!command.data) {
+      console.log(`Skipping ${file} because it has no data`);
+      continue;
+    }
+
+    commands.push(command.data.toJSON());
+    console.log(`Loaded command: ${command.data.name}`);
+  } catch (error) {
+    console.error(`Failed loading ${file}:`, error);
   }
-
-  commands.push(command.data.toJSON());
-  console.log(`Loaded command: ${command.data.name}`);
 }
 
 const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
   try {
+    console.log("🧹 Clearing old guild commands...");
+
+    await rest.put(
+      Routes.applicationGuildCommands(
+        process.env.CLIENT_ID,
+        process.env.GUILD_ID
+      ),
+      { body: [] }
+    );
+
+    console.log("✅ Old guild commands cleared.");
     console.log(`🔄 Registering ${commands.length} slash commands...`);
 
     await rest.put(

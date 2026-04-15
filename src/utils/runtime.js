@@ -225,7 +225,7 @@ async function endGiveawayRandom(client, runId) {
 
   run.status = "ended";
   run.winnerIds = winners;
-  run.claimDeadline = Date.now() + run.claimTimeoutMs;
+  run.claimDeadline = run.claimTimeoutMs === -1 ? 0 : Date.now() + run.claimTimeoutMs;
   run.winnerClaimed = false;
   await run.save();
 
@@ -245,10 +245,16 @@ async function endGiveawayRandom(client, runId) {
   }
 
   await updateLiveMessage(client, run._id);
+
+  const claimText =
+    run.claimTimeoutMs === -1
+      ? "No limit"
+      : `<t:${Math.floor(run.claimDeadline / 1000)}:F>`;
+
   await logToChannel(
     client,
     run,
-    `🎉 Giveaway ended for **${run.prize}**. Winner(s): ${winnerUsers.map(u => `<@${u.id}>`).join(", ")}. Claim deadline: <t:${Math.floor(run.claimDeadline / 1000)}:F>`
+    `🎉 Giveaway ended for **${run.prize}**. Winner(s): ${winnerUsers.map(u => `<@${u.id}>`).join(", ")}. Claim deadline: ${claimText}`
   );
 }
 
@@ -276,7 +282,7 @@ async function pickWinnerManually(client, runId, chosenUserId) {
 
   run.status = "ended";
   run.winnerIds = [chosenUserId];
-  run.claimDeadline = Date.now() + run.claimTimeoutMs;
+  run.claimDeadline = run.claimTimeoutMs === -1 ? 0 : Date.now() + run.claimTimeoutMs;
   run.winnerClaimed = false;
   await run.save();
 
@@ -302,7 +308,12 @@ async function pickWinnerManually(client, runId, chosenUserId) {
   await chosenUser.send(run.winnerDmMessage).catch(() => null);
   await updateLiveMessage(client, run._id);
 
-  await logToChannel(client, run, `👑 Manual winner pick for **${run.prize}**: <@${chosenUser.id}>`);
+  const claimText =
+    run.claimTimeoutMs === -1
+      ? "No limit"
+      : `<t:${Math.floor(run.claimDeadline / 1000)}:F>`;
+
+  await logToChannel(client, run, `👑 Manual winner pick for **${run.prize}**: <@${chosenUser.id}>. Claim deadline: ${claimText}`);
   return { ok: true, message: `✅ Winner manually selected: <@${chosenUser.id}>` };
 }
 

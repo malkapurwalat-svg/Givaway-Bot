@@ -19,6 +19,17 @@ module.exports = {
     .addChannelOption(opt => opt.setName("channel").setDescription("New channel").setRequired(false))
     .addRoleOption(opt => opt.setName("required_role").setDescription("New required role").setRequired(false))
     .addIntegerOption(opt => opt.setName("min_account_age_days").setDescription("New minimum account age in days").setRequired(false))
+    .addStringOption(opt =>
+      opt
+        .setName("staff_participation")
+        .setDescription("Allow staff to join?")
+        .addChoices(
+          { name: "Yes", value: "yes" },
+          { name: "No", value: "no" }
+        )
+        .setRequired(false)
+    )
+    .addStringOption(opt => opt.setName("host_display").setDescription("Custom hosted by text").setRequired(false))
     .addStringOption(opt => opt.setName("announcement").setDescription("New announcement").setRequired(false))
     .addStringOption(opt => opt.setName("winner_dm").setDescription("New winner DM").setRequired(false))
     .addStringOption(opt => opt.setName("participant_dm").setDescription("New participant DM").setRequired(false)),
@@ -33,6 +44,8 @@ module.exports = {
     const channel = interaction.options.getChannel("channel");
     const requiredRole = interaction.options.getRole("required_role");
     const minAccountAgeDays = interaction.options.getInteger("min_account_age_days");
+    const staffParticipationInput = interaction.options.getString("staff_participation");
+    const hostDisplay = interaction.options.getString("host_display");
     const announcement = interaction.options.getString("announcement");
     const winnerDM = interaction.options.getString("winner_dm");
     const participantDM = interaction.options.getString("participant_dm");
@@ -85,6 +98,16 @@ module.exports = {
 
     if (minAccountAgeDays !== null) {
       template.minAccountAgeDays = minAccountAgeDays;
+      changed = true;
+    }
+
+    if (staffParticipationInput) {
+      template.staffParticipation = staffParticipationInput === "yes";
+      changed = true;
+    }
+
+    if (hostDisplay) {
+      template.hostDisplay = hostDisplay;
       changed = true;
     }
 

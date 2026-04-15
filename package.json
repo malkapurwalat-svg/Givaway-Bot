@@ -2,10 +2,10 @@
   "name": "givex-bot",
   "version": "1.0.0",
   "description": "GiveX giveaway bot",
-  "main": "src/index.js",
+  "main": "index.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node index.js",
     "deploy": "node src/deploy-commands.js",
     "postinstall": "node src/deploy-commands.js"
   },

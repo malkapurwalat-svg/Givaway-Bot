@@ -24,7 +24,17 @@ function buildTemplatePreviewEmbed(data) {
       },
       {
         name: "Min Account Age",
-        value: `${data.minAccountAgeDays || 0} day(s)`,
+        value: `${data.minAccountAgeDays || 3} day(s)`,
+        inline: true
+      },
+      {
+        name: "Staff Participation",
+        value: data.staffParticipation ? "Yes" : "No",
+        inline: true
+      },
+      {
+        name: "Hosted By",
+        value: data.hostDisplay || "Not set",
         inline: true
       },
       { name: "Created By", value: `<@${data.createdBy}>`, inline: true },
@@ -80,7 +90,9 @@ function buildRequirementText(run) {
     parts.push(`Account Age: ${run.minAccountAgeDays}+ day(s)`);
   }
 
-  return parts.length ? parts.join("\n") : "No requirements";
+  parts.push(`Staff Participation: ${run.staffParticipation ? "Allowed" : "Blocked"}`);
+
+  return parts.join("\n");
 }
 
 function buildLiveEmbed(run) {
@@ -97,8 +109,9 @@ function buildLiveEmbed(run) {
     .setDescription("Giveaway is active and updating live.")
     .addFields(
       { name: "🎁 Prize", value: run.prize, inline: false },
+      { name: "🎤 Hosted By", value: run.hostDisplay || "Unknown", inline: false },
       { name: "🏆 Winners", value: String(run.winnerCount), inline: true },
-      { name: "👥 Participants", value: String(run.participants.length), inline: true },
+      { name: "👥 Participants", value: String(run.joinedUserIds.length), inline: true },
       { name: "📌 Status", value: getAnimatedStatus(percentLeft, run), inline: true },
       { name: "🛡️ Requirements", value: buildRequirementText(run), inline: false },
       { name: "⏳ Time Remaining", value: run.status === "running" ? formatDurationDetailed(left) : "Ended", inline: false },
@@ -107,7 +120,7 @@ function buildLiveEmbed(run) {
     )
     .setFooter({ text: "Updates every 5 seconds" });
 
-  if (run.status === "ended" && !run.winnerClaimed && run.claimDeadline > 0) {
+  if (run.status === "ended" && run.winnerIds.length && !run.winnerClaimed && run.claimDeadline > 0) {
     embed.addFields({
       name: "📩 Claim Deadline",
       value: `<t:${Math.floor(run.claimDeadline / 1000)}:F>`,

@@ -5,6 +5,7 @@ const {
 } = require("discord.js");
 
 const GiveawayRun = require("../models/GiveawayRun");
+const GuildConfig = require("../models/GuildConfig");
 const {
   buildLiveEmbed,
   buildEndingWarningEmbed,
@@ -13,6 +14,8 @@ const {
   buildManualPickEmbed
 } = require("./embeds");
 const { formatDurationDetailed } = require("./duration");
+
+const lifecycleMap = new Map();
 
 function renderText(template, values) {
   if (!template || !template.trim()) return "";
@@ -25,14 +28,44 @@ function renderText(template, values) {
     .replace(/\{winner_mentions\}/gi, values.winnerMentions ?? "");
 }
 
-function buildDisabledButtonRow() {
+function buildJoinRow(runId, label = "🎉 Join Giveaway", disabled = false) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId("join_disabled")
-      .setLabel("Giveaway Ended")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true)
+      .setCustomId(disabled ? `disabled_${runId}` : `join_${runId}`)
+      .setLabel(label)
+      .setStyle(disabled ? ButtonStyle.Secondary : ButtonStyle.Success)
+      .setDisabled(disabled)
   );
+}
+
+async function logToChannel(client, runOrGuildId, message) {
+  try {
+    let guildId;
+    let logChannelId = "";
+
+    if (typeof runOrGuildId === "string") {
+      guildId = runOrGuildId;
+      const guildConfig = await GuildConfig.findOne({ guildId });
+      logChannelId = guildConfig?.logChannelId || "";
+    } else {
+      guildId = runOrGuildId.guildId;
+      logChannelId = runOrGuildId.logChannelId || "";
+
+      if (!logChannelId) {
+        const guildConfig = await GuildConfig.findOne({ guildId });
+        logChannelId = guildConfig?.logChannelId || "";
+      }
+    }
+
+    if (!logChannelId) return;
+
+    const channel = await client.channels.fetch(logChannelId).catch(() => null);
+    if (!channel || !channel.isTextBased()) return;
+
+    await channel.send({ content: message }).catch(() => null);
+  } catch (error) {
+    console.error("logToChannel error:", error);
+  }
 }
 
 async function updateLiveMessage(client, runId) {
@@ -45,22 +78,39 @@ async function updateLiveMessage(client, runId) {
   const msg = await channel.messages.fetch(run.statusMessageId).catch(() => null);
   if (!msg) return false;
 
-  const components =
-    run.status === "running"
-      ? msg.components
-      : [buildDisabledButtonRow()];
+  let row;
+
+  if (run.status === "ended") {
+    row = buildJoinRow(run._id, "Giveaway Ended", true);
+  } else if (run.isPaused) {
+    row = buildJoinRow(run._id, "Giveaway Paused", true);
+  } else {
+    row = buildJoinRow(run._id, "🎉 Join Giveaway", false);
+  }
 
   await msg.edit({
     embeds: [buildLiveEmbed(run)],
-    components
+    components: [row]
   }).catch(() => null);
 
   return run.status === "running";
 }
 
+function clearLifecycle(runId) {
+  const timers = lifecycleMap.get(String(runId));
+  if (!timers) return;
+
+  if (timers.interval) clearInterval(timers.interval);
+  if (timers.warning1) clearTimeout(timers.warning1);
+  if (timers.warning2) clearTimeout(timers.warning2);
+  if (timers.end) clearTimeout(timers.end);
+
+  lifecycleMap.delete(String(runId));
+}
+
 async function sendWarning(client, runId, type) {
   const run = await GiveawayRun.findById(runId);
-  if (!run || run.status !== "running") return;
+  if (!run || run.status !== "running" || run.isPaused) return;
 
   if (type === 1 && run.warning1Sent) return;
   if (type === 2 && run.warning2Sent) return;
@@ -102,6 +152,8 @@ async function sendWarning(client, runId, type) {
   if (type === 1) run.warning1Sent = true;
   if (type === 2) run.warning2Sent = true;
   await run.save();
+
+  await logToChannel(client, run, `⚠️ Warning ${type} sent for giveaway **${run.prize}**.`);
 }
 
 async function sendWinnerAnnouncement(channel, run, winners) {
@@ -126,14 +178,31 @@ async function sendWinnerAnnouncement(channel, run, winners) {
   }).catch(() => null);
 }
 
+function pickWeightedWinners(weightedPool, winnerCount) {
+  const winners = [];
+  let pool = [...weightedPool];
+
+  while (winners.length < winnerCount && pool.length > 0) {
+    const chosenId = pool[Math.floor(Math.random() * pool.length)];
+    if (!winners.includes(chosenId)) {
+      winners.push(chosenId);
+      pool = pool.filter(id => id !== chosenId);
+    }
+  }
+
+  return winners;
+}
+
 async function endGiveawayRandom(client, runId) {
   const run = await GiveawayRun.findById(runId);
   if (!run || run.status !== "running") return;
 
+  clearLifecycle(run._id);
+
   const channel = await client.channels.fetch(run.channelId).catch(() => null);
   if (!channel || !channel.isTextBased()) return;
 
-  if (!run.participants.length) {
+  if (!run.joinedUserIds.length) {
     run.status = "ended";
     await run.save();
 
@@ -142,18 +211,13 @@ async function endGiveawayRandom(client, runId) {
     }).catch(() => null);
 
     await updateLiveMessage(client, run._id);
+    await logToChannel(client, run, `❌ Giveaway ended with no participants for **${run.prize}**.`);
     return;
   }
 
-  const pool = [...run.participants];
-  const winners = [];
-
-  while (winners.length < Math.min(run.winnerCount, pool.length)) {
-    const randomId = pool[Math.floor(Math.random() * pool.length)];
-    if (!winners.includes(randomId)) winners.push(randomId);
-  }
-
+  const winners = pickWeightedWinners(run.participants, Math.min(run.winnerCount, run.joinedUserIds.length));
   const winnerUsers = [];
+
   for (const id of winners) {
     const user = await client.users.fetch(id).catch(() => null);
     if (user) winnerUsers.push(user);
@@ -161,6 +225,8 @@ async function endGiveawayRandom(client, runId) {
 
   run.status = "ended";
   run.winnerIds = winners;
+  run.claimDeadline = Date.now() + run.claimTimeoutMs;
+  run.winnerClaimed = false;
   await run.save();
 
   if (!winnerUsers.length) {
@@ -168,6 +234,7 @@ async function endGiveawayRandom(client, runId) {
       embeds: [buildNoParticipantsEmbed(run.prize)]
     }).catch(() => null);
     await updateLiveMessage(client, run._id);
+    await logToChannel(client, run, `❌ Giveaway ended but no winner users could be fetched for **${run.prize}**.`);
     return;
   }
 
@@ -178,6 +245,11 @@ async function endGiveawayRandom(client, runId) {
   }
 
   await updateLiveMessage(client, run._id);
+  await logToChannel(
+    client,
+    run,
+    `🎉 Giveaway ended for **${run.prize}**. Winner(s): ${winnerUsers.map(u => `<@${u.id}>`).join(", ")}. Claim deadline: <t:${Math.floor(run.claimDeadline / 1000)}:F>`
+  );
 }
 
 async function pickWinnerManually(client, runId, chosenUserId) {
@@ -186,9 +258,11 @@ async function pickWinnerManually(client, runId, chosenUserId) {
     return { ok: false, message: "❌ No running giveaway found with that message ID." };
   }
 
-  if (!run.participants.includes(chosenUserId)) {
+  if (!run.joinedUserIds.includes(chosenUserId)) {
     return { ok: false, message: "❌ That user did not join this giveaway." };
   }
+
+  clearLifecycle(run._id);
 
   const channel = await client.channels.fetch(run.channelId).catch(() => null);
   if (!channel || !channel.isTextBased()) {
@@ -202,6 +276,8 @@ async function pickWinnerManually(client, runId, chosenUserId) {
 
   run.status = "ended";
   run.winnerIds = [chosenUserId];
+  run.claimDeadline = Date.now() + run.claimTimeoutMs;
+  run.winnerClaimed = false;
   await run.save();
 
   const customText = run.customWinnerAnnouncement?.trim();
@@ -226,30 +302,65 @@ async function pickWinnerManually(client, runId, chosenUserId) {
   await chosenUser.send(run.winnerDmMessage).catch(() => null);
   await updateLiveMessage(client, run._id);
 
+  await logToChannel(client, run, `👑 Manual winner pick for **${run.prize}**: <@${chosenUser.id}>`);
   return { ok: true, message: `✅ Winner manually selected: <@${chosenUser.id}>` };
 }
 
 function scheduleGiveawayLifecycle(client, runId, durationMs) {
+  clearLifecycle(runId);
+
   const interval = setInterval(async () => {
-    const keep = await updateLiveMessage(client, runId);
-    if (!keep) clearInterval(interval);
+    const run = await GiveawayRun.findById(runId);
+    if (!run || run.status !== "running") {
+      clearLifecycle(runId);
+      return;
+    }
+
+    if (!run.isPaused) {
+      await updateLiveMessage(client, runId);
+    }
   }, 5000);
 
-  setTimeout(() => {
+  const warning1 = setTimeout(() => {
     sendWarning(client, runId, 1);
   }, Math.floor(durationMs / 2));
 
-  setTimeout(() => {
+  const warning2 = setTimeout(() => {
     sendWarning(client, runId, 2);
   }, Math.floor(durationMs * 3 / 4));
 
-  setTimeout(async () => {
+  const end = setTimeout(async () => {
     await endGiveawayRandom(client, runId);
-    clearInterval(interval);
   }, durationMs);
+
+  lifecycleMap.set(String(runId), { interval, warning1, warning2, end });
+}
+
+async function pauseGiveawayLifecycle(client, run) {
+  clearLifecycle(run._id);
+  await updateLiveMessage(client, run._id);
+  await logToChannel(client, run, `⏸️ Giveaway paused for **${run.prize}**.`);
+}
+
+async function resumeGiveawayLifecycle(client, run) {
+  const pausedDuration = Date.now() - run.pausedAt;
+  run.endsAt += pausedDuration;
+  run.startedAt += pausedDuration;
+  run.isPaused = false;
+  run.pausedAt = 0;
+  await run.save();
+
+  const remaining = Math.max(1000, run.endsAt - Date.now());
+  scheduleGiveawayLifecycle(client, run._id, remaining);
+  await updateLiveMessage(client, run._id);
+  await logToChannel(client, run, `▶️ Giveaway resumed for **${run.prize}**.`);
 }
 
 module.exports = {
   scheduleGiveawayLifecycle,
-  pickWinnerManually
+  pauseGiveawayLifecycle,
+  resumeGiveawayLifecycle,
+  endGiveawayRandom,
+  pickWinnerManually,
+  logToChannel
 };

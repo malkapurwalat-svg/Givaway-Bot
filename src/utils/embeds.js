@@ -95,6 +95,14 @@ function buildRequirementText(run) {
   return parts.join("\n");
 }
 
+function buildClaimText(run) {
+  if (run.claimTimeoutMs === -1) return "No limit";
+  if (run.status === "ended" && run.winnerIds.length && run.claimDeadline > 0) {
+    return `<t:${Math.floor(run.claimDeadline / 1000)}:F>`;
+  }
+  return formatDurationDetailed(run.claimTimeoutMs || 12 * 60 * 60 * 1000);
+}
+
 function buildLiveEmbed(run) {
   const now = Date.now();
   const total = Math.max(1, run.endsAt - run.startedAt);
@@ -115,18 +123,11 @@ function buildLiveEmbed(run) {
       { name: "📌 Status", value: getAnimatedStatus(percentLeft, run), inline: true },
       { name: "🛡️ Requirements", value: buildRequirementText(run), inline: false },
       { name: "⏳ Time Remaining", value: run.status === "running" ? formatDurationDetailed(left) : "Ended", inline: false },
+      { name: "📩 Claim Time", value: buildClaimText(run), inline: false },
       { name: "📊 Progress", value: `${progressBar(percentLeft)} ${Math.round(percentLeft * 100)}%`, inline: false },
       { name: "🕒 Ends At", value: `<t:${endUnix}:F>`, inline: false }
     )
     .setFooter({ text: "Updates every 5 seconds" });
-
-  if (run.status === "ended" && run.winnerIds.length && !run.winnerClaimed && run.claimDeadline > 0) {
-    embed.addFields({
-      name: "📩 Claim Deadline",
-      value: `<t:${Math.floor(run.claimDeadline / 1000)}:F>`,
-      inline: false
-    });
-  }
 
   return embed;
 }

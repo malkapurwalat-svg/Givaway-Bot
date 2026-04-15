@@ -4,6 +4,7 @@ const {
 } = require("discord.js");
 
 const { ensureAdmin } = require("../utils/adminOnly");
+const { parseClaimTime } = require("../utils/duration");
 const GiveawayTemplate = require("../models/GiveawayTemplate");
 const GiveawayRun = require("../models/GiveawayRun");
 const GuildConfig = require("../models/GuildConfig");
@@ -20,7 +21,7 @@ module.exports = {
     .addStringOption(opt => opt.setName("ending_message_1").setDescription("Half-time warning. Use {time}").setRequired(false))
     .addStringOption(opt => opt.setName("ending_message_2").setDescription("Quarter-time warning. Use {time}").setRequired(false))
     .addStringOption(opt => opt.setName("winner_announcement").setDescription("Final winner message. Use {winner_mentions}").setRequired(false))
-    .addIntegerOption(opt => opt.setName("claim_timeout_hours").setDescription("Optional winner claim timeout in hours").setRequired(false)),
+    .addStringOption(opt => opt.setName("claim_time").setDescription("Example: 1h, 1h30m, 2h, or - for forever").setRequired(false)),
 
   async execute(interaction, client) {
     if (!(await ensureAdmin(interaction))) return;
@@ -30,7 +31,17 @@ module.exports = {
     const endingMessage1 = interaction.options.getString("ending_message_1") || "";
     const endingMessage2 = interaction.options.getString("ending_message_2") || "";
     const winnerAnnouncement = interaction.options.getString("winner_announcement") || "";
-    const claimTimeoutHours = interaction.options.getInteger("claim_timeout_hours") || 12;
+    const claimTimeInput = interaction.options.getString("claim_time") || "";
+
+    let claimTimeoutMs;
+    try {
+      claimTimeoutMs = parseClaimTime(claimTimeInput);
+    } catch (error) {
+      return interaction.reply({
+        content: `❌ ${error.message}`,
+        ephemeral: true
+      });
+    }
 
     const template = await GiveawayTemplate.findOne({
       guildId: interaction.guild.id,
@@ -94,7 +105,7 @@ module.exports = {
       customEndingMessage2: endingMessage2,
       customWinnerAnnouncement: winnerAnnouncement,
       logChannelId: guildConfig?.logChannelId || "",
-      claimTimeoutMs: claimTimeoutHours * 60 * 60 * 1000,
+      claimTimeoutMs,
       participants: [],
       joinedUserIds: [],
       blockedUsers: [],
@@ -124,7 +135,11 @@ module.exports = {
     run.statusMessageId = statusMessage.id;
     await run.save();
 
-    await logToChannel(client, run, `✅ Giveaway started by <@${interaction.user.id}> for **${run.prize}** with token \`${run.templateToken}\`.`);
+    await logToChannel(
+      client,
+      run,
+      `✅ Giveaway started by <@${interaction.user.id}> for **${run.prize}** with token \`${run.templateToken}\`. Claim time: ${claimTimeoutMs === -1 ? "No limit" : `${claimTimeInput || "12h default"}`}`
+    );
 
     await interaction.reply({
       content: "✅ Giveaway started!",

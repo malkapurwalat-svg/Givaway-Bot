@@ -1,14 +1,12 @@
 const {
   SlashCommandBuilder,
-  PermissionFlagsBits,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle
+  PermissionFlagsBits
 } = require("discord.js");
 
 const { ensureAdmin } = require("../utils/adminOnly");
 const GiveawayTemplate = require("../models/GiveawayTemplate");
 const GiveawayRun = require("../models/GiveawayRun");
+const GuildConfig = require("../models/GuildConfig");
 const { buildLiveEmbed } = require("../utils/embeds");
 const { scheduleGiveawayLifecycle, logToChannel } = require("../utils/runtime");
 
@@ -22,7 +20,6 @@ module.exports = {
     .addStringOption(opt => opt.setName("ending_message_1").setDescription("Half-time warning. Use {time}").setRequired(false))
     .addStringOption(opt => opt.setName("ending_message_2").setDescription("Quarter-time warning. Use {time}").setRequired(false))
     .addStringOption(opt => opt.setName("winner_announcement").setDescription("Final winner message. Use {winner_mentions}").setRequired(false))
-    .addChannelOption(opt => opt.setName("log_channel").setDescription("Optional staff log channel").setRequired(false))
     .addIntegerOption(opt => opt.setName("claim_timeout_hours").setDescription("Optional winner claim timeout in hours").setRequired(false)),
 
   async execute(interaction, client) {
@@ -33,7 +30,6 @@ module.exports = {
     const endingMessage1 = interaction.options.getString("ending_message_1") || "";
     const endingMessage2 = interaction.options.getString("ending_message_2") || "";
     const winnerAnnouncement = interaction.options.getString("winner_announcement") || "";
-    const logChannel = interaction.options.getChannel("log_channel");
     const claimTimeoutHours = interaction.options.getInteger("claim_timeout_hours") || 12;
 
     const template = await GiveawayTemplate.findOne({
@@ -77,6 +73,8 @@ module.exports = {
       });
     }
 
+    const guildConfig = await GuildConfig.findOne({ guildId: interaction.guild.id });
+
     const run = await GiveawayRun.create({
       guildId: interaction.guild.id,
       templateToken: token,
@@ -86,16 +84,19 @@ module.exports = {
       channelId: channel.id,
       messageId: announcementMsg.id,
       hostUserId: interaction.user.id,
+      hostDisplay: template.hostDisplay || "GiveX System",
       winnerDmMessage: template.winnerDmMessage,
       participantDmMessage: template.participantDmMessage,
       requiredRoleId: template.requiredRoleId,
       minAccountAgeDays: template.minAccountAgeDays,
+      staffParticipation: template.staffParticipation,
       customEndingMessage1: endingMessage1,
       customEndingMessage2: endingMessage2,
       customWinnerAnnouncement: winnerAnnouncement,
-      logChannelId: logChannel?.id || "",
+      logChannelId: guildConfig?.logChannelId || "",
       claimTimeoutMs: claimTimeoutHours * 60 * 60 * 1000,
       participants: [],
+      joinedUserIds: [],
       blockedUsers: [],
       winnerIds: [],
       status: "running",
@@ -103,16 +104,21 @@ module.exports = {
       endsAt: Date.now() + template.durationMs
     });
 
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`join_${run._id}`)
-        .setLabel("🎉 Join Giveaway")
-        .setStyle(ButtonStyle.Success)
-    );
-
     const statusMessage = await channel.send({
       embeds: [buildLiveEmbed(run)],
-      components: [row]
+      components: [
+        {
+          type: 1,
+          components: [
+            {
+              type: 2,
+              style: 3,
+              custom_id: `join_${run._id}`,
+              label: "🎉 Join Giveaway"
+            }
+          ]
+        }
+      ]
     });
 
     run.statusMessageId = statusMessage.id;

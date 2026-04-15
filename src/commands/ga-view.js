@@ -39,7 +39,11 @@ module.exports = {
         { name: "Prize", value: template.prize, inline: true },
         { name: "Winners", value: String(template.winnerCount), inline: true },
         { name: "Duration", value: formatDuration(template.durationMs), inline: true },
-        { name: "Channel", value: `<#${template.channelId}>`, inline: true }
+        { name: "Channel", value: `<#${template.channelId}>`, inline: true },
+        { name: "Hosted By", value: template.hostDisplay || "GiveX System", inline: true },
+        { name: "Required Role", value: template.requiredRoleId ? `<@&${template.requiredRoleId}>` : "None", inline: true },
+        { name: "Min Account Age", value: `${template.minAccountAgeDays} day(s)`, inline: true },
+        { name: "Staff Participation", value: template.staffParticipation ? "Yes" : "No", inline: true }
       );
 
     await interaction.reply({

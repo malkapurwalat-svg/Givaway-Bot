@@ -29,7 +29,7 @@ module.exports = {
     }
 
     const lines = templates.map(t =>
-      `**Token:** ${t.token} | **Prize:** ${t.prize} | **Duration:** ${formatDuration(t.durationMs)} | **Winners:** ${t.winnerCount}`
+      `**Token:** ${t.token} | **Prize:** ${t.prize} | **Duration:** ${formatDuration(t.durationMs)} | **Winners:** ${t.winnerCount} | **Host:** ${t.hostDisplay || "GiveX System"}`
     );
 
     const embed = new EmbedBuilder()

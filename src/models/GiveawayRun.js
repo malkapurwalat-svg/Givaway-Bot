@@ -40,6 +40,10 @@ const giveawayRunSchema = new mongoose.Schema(
       type: String,
       default: ""
     },
+    hostDisplay: {
+      type: String,
+      default: ""
+    },
     winnerDmMessage: {
       type: String,
       required: true
@@ -54,7 +58,11 @@ const giveawayRunSchema = new mongoose.Schema(
     },
     minAccountAgeDays: {
       type: Number,
-      default: 0
+      default: 3
+    },
+    staffParticipation: {
+      type: Boolean,
+      default: true
     },
     customEndingMessage1: {
       type: String,
@@ -85,6 +93,10 @@ const giveawayRunSchema = new mongoose.Schema(
       default: false
     },
     participants: {
+      type: [String],
+      default: []
+    },
+    joinedUserIds: {
       type: [String],
       default: []
     },

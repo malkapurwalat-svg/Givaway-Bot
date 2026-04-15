@@ -46,7 +46,15 @@ const giveawayTemplateSchema = new mongoose.Schema(
     },
     minAccountAgeDays: {
       type: Number,
-      default: 0
+      default: 3
+    },
+    staffParticipation: {
+      type: Boolean,
+      default: true
+    },
+    hostDisplay: {
+      type: String,
+      default: ""
     },
     createdBy: {
       type: String,

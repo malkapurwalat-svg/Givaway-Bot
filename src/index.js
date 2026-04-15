@@ -12,6 +12,7 @@ const {
 const GiveawayRun = require("./models/GiveawayRun");
 const GuildConfig = require("./models/GuildConfig");
 const { buildLiveEmbed } = require("./utils/embeds");
+const { registerCommands } = require("./deploy-commands");
 
 const client = new Client({
   intents: [
@@ -93,6 +94,7 @@ client.on("interactionCreate", async (interaction) => {
         const isStaff =
           member.permissions.has("Administrator") ||
           member.permissions.has("ManageGuild");
+
         if (isStaff) {
           if (!run.blockedUsers.includes(interaction.user.id)) {
             run.blockedUsers.push(interaction.user.id);
@@ -195,6 +197,9 @@ client.on("interactionCreate", async (interaction) => {
 async function start() {
   await mongoose.connect(process.env.MONGO_URL);
   console.log("✅ Connected to MongoDB");
+
+  await registerCommands();
+
   await client.login(process.env.DISCORD_TOKEN);
 }
 

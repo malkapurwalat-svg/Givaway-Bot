@@ -22,7 +22,18 @@ module.exports = {
     .addIntegerOption(opt => opt.setName("winners").setDescription("Number of winners").setRequired(true))
     .addChannelOption(opt => opt.setName("channel").setDescription("Giveaway channel").setRequired(true))
     .addRoleOption(opt => opt.setName("required_role").setDescription("Optional required role").setRequired(false))
-    .addIntegerOption(opt => opt.setName("min_account_age_days").setDescription("Optional minimum account age in days").setRequired(false))
+    .addIntegerOption(opt => opt.setName("min_account_age_days").setDescription("Minimum account age in days").setRequired(false))
+    .addStringOption(opt =>
+      opt
+        .setName("staff_participation")
+        .setDescription("Allow staff to join?")
+        .addChoices(
+          { name: "Yes", value: "yes" },
+          { name: "No", value: "no" }
+        )
+        .setRequired(true)
+    )
+    .addStringOption(opt => opt.setName("host_display").setDescription("Custom hosted by text").setRequired(false))
     .addStringOption(opt => opt.setName("announcement").setDescription("Saved announcement").setRequired(true))
     .addStringOption(opt => opt.setName("winner_dm").setDescription("Winner DM").setRequired(true))
     .addStringOption(opt => opt.setName("participant_dm").setDescription("Participant DM").setRequired(true)),
@@ -36,7 +47,9 @@ module.exports = {
     const winners = interaction.options.getInteger("winners");
     const channel = interaction.options.getChannel("channel");
     const requiredRole = interaction.options.getRole("required_role");
-    const minAccountAgeDays = interaction.options.getInteger("min_account_age_days") || 0;
+    const minAccountAgeDays = interaction.options.getInteger("min_account_age_days") ?? 3;
+    const staffParticipation = interaction.options.getString("staff_participation") === "yes";
+    const hostDisplay = interaction.options.getString("host_display") || "GiveX System";
     const announcement = interaction.options.getString("announcement");
     const winnerDM = interaction.options.getString("winner_dm");
     const participantDM = interaction.options.getString("participant_dm");
@@ -71,6 +84,8 @@ module.exports = {
       channelId: channel.id,
       requiredRoleId: requiredRole?.id || "",
       minAccountAgeDays,
+      staffParticipation,
+      hostDisplay,
       announcementMessage: announcement,
       winnerDmMessage: winnerDM,
       participantDmMessage: participantDM,
@@ -129,6 +144,8 @@ module.exports = {
           participantDmMessage: participantDM,
           requiredRoleId: requiredRole?.id || "",
           minAccountAgeDays,
+          staffParticipation,
+          hostDisplay,
           createdBy: interaction.user.id
         });
 

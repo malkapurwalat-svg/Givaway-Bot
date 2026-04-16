@@ -15,7 +15,9 @@ const {
 } = require("./embeds");
 const { formatDurationDetailed } = require("./duration");
 
-const lifecycleMap = new Map();
+let recoveryInterval = null;
+let recoveryStarted = false;
+const activeEnds = new Set();
 
 function renderText(template, values) {
   if (!template || !template.trim()) return "";
@@ -96,18 +98,6 @@ async function updateLiveMessage(client, runId) {
   return run.status === "running";
 }
 
-function clearLifecycle(runId) {
-  const timers = lifecycleMap.get(String(runId));
-  if (!timers) return;
-
-  if (timers.interval) clearInterval(timers.interval);
-  if (timers.warning1) clearTimeout(timers.warning1);
-  if (timers.warning2) clearTimeout(timers.warning2);
-  if (timers.end) clearTimeout(timers.end);
-
-  lifecycleMap.delete(String(runId));
-}
-
 async function sendWarning(client, runId, type) {
   const run = await GiveawayRun.findById(runId);
   if (!run || run.status !== "running" || run.isPaused) return;
@@ -156,6 +146,21 @@ async function sendWarning(client, runId, type) {
   await logToChannel(client, run, `⚠️ Warning ${type} sent for giveaway **${run.prize}**.`);
 }
 
+function pickWeightedWinners(weightedPool, winnerCount) {
+  const winners = [];
+  let pool = [...weightedPool];
+
+  while (winners.length < winnerCount && pool.length > 0) {
+    const chosenId = pool[Math.floor(Math.random() * pool.length)];
+    if (!winners.includes(chosenId)) {
+      winners.push(chosenId);
+      pool = pool.filter(id => id !== chosenId);
+    }
+  }
+
+  return winners;
+}
+
 async function sendWinnerAnnouncement(channel, run, winners) {
   const customText = run.customWinnerAnnouncement?.trim();
 
@@ -178,84 +183,79 @@ async function sendWinnerAnnouncement(channel, run, winners) {
   }).catch(() => null);
 }
 
-function pickWeightedWinners(weightedPool, winnerCount) {
-  const winners = [];
-  let pool = [...weightedPool];
-
-  while (winners.length < winnerCount && pool.length > 0) {
-    const chosenId = pool[Math.floor(Math.random() * pool.length)];
-    if (!winners.includes(chosenId)) {
-      winners.push(chosenId);
-      pool = pool.filter(id => id !== chosenId);
-    }
-  }
-
-  return winners;
-}
-
 async function endGiveawayRandom(client, runId) {
-  const run = await GiveawayRun.findById(runId);
-  if (!run || run.status !== "running") return;
+  const id = String(runId);
+  if (activeEnds.has(id)) return;
+  activeEnds.add(id);
 
-  clearLifecycle(run._id);
+  try {
+    const run = await GiveawayRun.findById(runId);
+    if (!run || run.status !== "running") return;
 
-  const channel = await client.channels.fetch(run.channelId).catch(() => null);
-  if (!channel || !channel.isTextBased()) return;
+    const channel = await client.channels.fetch(run.channelId).catch(() => null);
+    if (!channel || !channel.isTextBased()) return;
 
-  if (!run.joinedUserIds.length) {
+    if (!run.joinedUserIds.length) {
+      run.status = "ended";
+      await run.save();
+
+      await channel.send({
+        embeds: [buildNoParticipantsEmbed(run.prize)]
+      }).catch(() => null);
+
+      await updateLiveMessage(client, run._id);
+      await logToChannel(client, run, `❌ Giveaway ended with no participants for **${run.prize}**.`);
+      return;
+    }
+
+    const winners = pickWeightedWinners(
+      run.participants,
+      Math.min(run.winnerCount, run.joinedUserIds.length)
+    );
+
+    const winnerUsers = [];
+    for (const userId of winners) {
+      const user = await client.users.fetch(userId).catch(() => null);
+      if (user) winnerUsers.push(user);
+    }
+
     run.status = "ended";
+    run.winnerIds = winners;
+    run.claimDeadline = run.claimTimeoutMs === -1 ? 0 : Date.now() + run.claimTimeoutMs;
+    run.winnerClaimed = false;
     await run.save();
 
-    await channel.send({
-      embeds: [buildNoParticipantsEmbed(run.prize)]
-    }).catch(() => null);
+    if (!winnerUsers.length) {
+      await channel.send({
+        embeds: [buildNoParticipantsEmbed(run.prize)]
+      }).catch(() => null);
+
+      await updateLiveMessage(client, run._id);
+      await logToChannel(client, run, `❌ Giveaway ended but no winner users could be fetched for **${run.prize}**.`);
+      return;
+    }
+
+    await sendWinnerAnnouncement(channel, run, winnerUsers);
+
+    for (const user of winnerUsers) {
+      await user.send(run.winnerDmMessage).catch(() => null);
+    }
 
     await updateLiveMessage(client, run._id);
-    await logToChannel(client, run, `❌ Giveaway ended with no participants for **${run.prize}**.`);
-    return;
+
+    const claimText =
+      run.claimTimeoutMs === -1
+        ? "No limit"
+        : `<t:${Math.floor(run.claimDeadline / 1000)}:F>`;
+
+    await logToChannel(
+      client,
+      run,
+      `🎉 Giveaway ended for **${run.prize}**. Winner(s): ${winnerUsers.map(u => `<@${u.id}>`).join(", ")}. Claim deadline: ${claimText}`
+    );
+  } finally {
+    activeEnds.delete(id);
   }
-
-  const winners = pickWeightedWinners(run.participants, Math.min(run.winnerCount, run.joinedUserIds.length));
-  const winnerUsers = [];
-
-  for (const id of winners) {
-    const user = await client.users.fetch(id).catch(() => null);
-    if (user) winnerUsers.push(user);
-  }
-
-  run.status = "ended";
-  run.winnerIds = winners;
-  run.claimDeadline = run.claimTimeoutMs === -1 ? 0 : Date.now() + run.claimTimeoutMs;
-  run.winnerClaimed = false;
-  await run.save();
-
-  if (!winnerUsers.length) {
-    await channel.send({
-      embeds: [buildNoParticipantsEmbed(run.prize)]
-    }).catch(() => null);
-    await updateLiveMessage(client, run._id);
-    await logToChannel(client, run, `❌ Giveaway ended but no winner users could be fetched for **${run.prize}**.`);
-    return;
-  }
-
-  await sendWinnerAnnouncement(channel, run, winnerUsers);
-
-  for (const user of winnerUsers) {
-    await user.send(run.winnerDmMessage).catch(() => null);
-  }
-
-  await updateLiveMessage(client, run._id);
-
-  const claimText =
-    run.claimTimeoutMs === -1
-      ? "No limit"
-      : `<t:${Math.floor(run.claimDeadline / 1000)}:F>`;
-
-  await logToChannel(
-    client,
-    run,
-    `🎉 Giveaway ended for **${run.prize}**. Winner(s): ${winnerUsers.map(u => `<@${u.id}>`).join(", ")}. Claim deadline: ${claimText}`
-  );
 }
 
 async function pickWinnerManually(client, runId, chosenUserId) {
@@ -267,8 +267,6 @@ async function pickWinnerManually(client, runId, chosenUserId) {
   if (!run.joinedUserIds.includes(chosenUserId)) {
     return { ok: false, message: "❌ That user did not join this giveaway." };
   }
-
-  clearLifecycle(run._id);
 
   const channel = await client.channels.fetch(run.channelId).catch(() => null);
   if (!channel || !channel.isTextBased()) {
@@ -314,57 +312,89 @@ async function pickWinnerManually(client, runId, chosenUserId) {
       : `<t:${Math.floor(run.claimDeadline / 1000)}:F>`;
 
   await logToChannel(client, run, `👑 Manual winner pick for **${run.prize}**: <@${chosenUser.id}>. Claim deadline: ${claimText}`);
+
   return { ok: true, message: `✅ Winner manually selected: <@${chosenUser.id}>` };
 }
 
-function scheduleGiveawayLifecycle(client, runId, durationMs) {
-  clearLifecycle(runId);
-
-  const interval = setInterval(async () => {
-    const run = await GiveawayRun.findById(runId);
-    if (!run || run.status !== "running") {
-      clearLifecycle(runId);
-      return;
-    }
-
-    if (!run.isPaused) {
-      await updateLiveMessage(client, runId);
-    }
-  }, 5000);
-
-  const warning1 = setTimeout(() => {
-    sendWarning(client, runId, 1);
-  }, Math.floor(durationMs / 2));
-
-  const warning2 = setTimeout(() => {
-    sendWarning(client, runId, 2);
-  }, Math.floor(durationMs * 3 / 4));
-
-  const end = setTimeout(async () => {
-    await endGiveawayRandom(client, runId);
-  }, durationMs);
-
-  lifecycleMap.set(String(runId), { interval, warning1, warning2, end });
-}
-
 async function pauseGiveawayLifecycle(client, run) {
-  clearLifecycle(run._id);
+  run.isPaused = true;
+  run.pausedAt = Date.now();
+  await run.save();
+
   await updateLiveMessage(client, run._id);
   await logToChannel(client, run, `⏸️ Giveaway paused for **${run.prize}**.`);
 }
 
 async function resumeGiveawayLifecycle(client, run) {
   const pausedDuration = Date.now() - run.pausedAt;
+
   run.endsAt += pausedDuration;
   run.startedAt += pausedDuration;
   run.isPaused = false;
   run.pausedAt = 0;
   await run.save();
 
-  const remaining = Math.max(1000, run.endsAt - Date.now());
-  scheduleGiveawayLifecycle(client, run._id, remaining);
   await updateLiveMessage(client, run._id);
   await logToChannel(client, run, `▶️ Giveaway resumed for **${run.prize}**.`);
+}
+
+async function processRunningGiveaway(client, run) {
+  if (run.status !== "running") return;
+
+  await updateLiveMessage(client, run._id);
+
+  if (run.isPaused) return;
+
+  const now = Date.now();
+  const halfPoint = run.startedAt + Math.floor(run.durationMs / 2);
+  const finalPoint = run.startedAt + Math.floor(run.durationMs * 3 / 4);
+
+  if (!run.warning1Sent && now >= halfPoint) {
+    await sendWarning(client, run._id, 1);
+  }
+
+  if (!run.warning2Sent && now >= finalPoint) {
+    await sendWarning(client, run._id, 2);
+  }
+
+  if (now >= run.endsAt) {
+    await endGiveawayRandom(client, run._id);
+  }
+}
+
+async function recoveryTick(client) {
+  const runningGiveaways = await GiveawayRun.find({ status: "running" });
+
+  for (const run of runningGiveaways) {
+    try {
+      await processRunningGiveaway(client, run);
+    } catch (error) {
+      console.error(`Recovery tick error for giveaway ${run._id}:`, error);
+    }
+  }
+}
+
+async function initializeRecoveryEngine(client) {
+  if (recoveryStarted) return;
+  recoveryStarted = true;
+
+  console.log("🛠️ Starting giveaway recovery engine...");
+
+  await recoveryTick(client);
+
+  recoveryInterval = setInterval(async () => {
+    try {
+      await recoveryTick(client);
+    } catch (error) {
+      console.error("Recovery engine interval error:", error);
+    }
+  }, 5000);
+
+  console.log("✅ Giveaway recovery engine started.");
+}
+
+async function scheduleGiveawayLifecycle(client, runId) {
+  await updateLiveMessage(client, runId);
 }
 
 module.exports = {
@@ -373,5 +403,6 @@ module.exports = {
   resumeGiveawayLifecycle,
   endGiveawayRandom,
   pickWinnerManually,
-  logToChannel
+  logToChannel,
+  initializeRecoveryEngine
 };

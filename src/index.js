@@ -6,13 +6,15 @@ const mongoose = require("mongoose");
 const {
   Client,
   Collection,
-  GatewayIntentBits
+  GatewayIntentBits,
+  PermissionsBitField
 } = require("discord.js");
 
 const GiveawayRun = require("./models/GiveawayRun");
 const GuildConfig = require("./models/GuildConfig");
 const { buildLiveEmbed } = require("./utils/embeds");
 const { registerCommands } = require("./deploy-commands");
+const { initializeRecoveryEngine } = require("./utils/runtime");
 
 const client = new Client({
   intents: [
@@ -35,8 +37,9 @@ for (const file of commandFiles) {
   }
 }
 
-client.once("clientReady", () => {
+client.once("clientReady", async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
+  await initializeRecoveryEngine(client);
 });
 
 client.on("interactionCreate", async (interaction) => {
@@ -44,6 +47,7 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (!command) return;
+
       await command.execute(interaction, client);
       return;
     }
@@ -92,8 +96,8 @@ client.on("interactionCreate", async (interaction) => {
 
       if (!run.staffParticipation) {
         const isStaff =
-          member.permissions.has("Administrator") ||
-          member.permissions.has("ManageGuild");
+          member.permissions.has(PermissionsBitField.Flags.Administrator) ||
+          member.permissions.has(PermissionsBitField.Flags.ManageGuild);
 
         if (isStaff) {
           if (!run.blockedUsers.includes(interaction.user.id)) {

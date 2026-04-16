@@ -146,6 +146,6 @@ module.exports = {
       ephemeral: true
     });
 
-    scheduleGiveawayLifecycle(client, run._id, run.durationMs);
+    await scheduleGiveawayLifecycle(client, run._id);
   }
 };

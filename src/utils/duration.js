@@ -5,8 +5,8 @@ function parseDuration(input) {
   let total = 0;
   let match;
 
-  while ((match = regex.exec(input)) !== null) {
-    const value = parseInt(match[1]);
+  while ((match = regex.exec(String(input))) !== null) {
+    const value = parseInt(match[1], 10);
     const unit = match[2].toLowerCase();
 
     if (unit === "s") total += value * 1000;
@@ -21,13 +21,38 @@ function parseDuration(input) {
 
 function parseClaimTime(input) {
   if (!input || input.trim() === "") return 12 * 60 * 60 * 1000; // default 12h
-
   if (input.trim() === "-") return -1; // forever
 
-  return parseDuration(input);
+  const value = parseDuration(input);
+
+  if (value < 60 * 60 * 1000) {
+    throw new Error("Claim time must be at least 1h, or use - for forever.");
+  }
+
+  return value;
+}
+
+function formatDuration(ms) {
+  if (ms === -1) return "No limit";
+  if (!Number.isFinite(ms) || ms <= 0) return "0s";
+
+  const totalSeconds = Math.floor(ms / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const parts = [];
+  if (days) parts.push(`${days}d`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  if (seconds && parts.length === 0) parts.push(`${seconds}s`);
+
+  return parts.join(" ");
 }
 
 function formatDurationDetailed(ms) {
+  if (ms === -1) return "No limit";
   if (ms <= 0) return "0 seconds";
 
   const s = Math.floor(ms / 1000);
@@ -48,5 +73,6 @@ function formatDurationDetailed(ms) {
 module.exports = {
   parseDuration,
   parseClaimTime,
+  formatDuration,
   formatDurationDetailed
 };

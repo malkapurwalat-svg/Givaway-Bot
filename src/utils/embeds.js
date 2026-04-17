@@ -1,201 +1,132 @@
 const { EmbedBuilder } = require("discord.js");
-const { formatDuration, formatDurationDetailed } = require("./duration");
+const { formatDurationDetailed } = require("./duration");
 
-function truncateBlock(text) {
-  if (!text) return "*empty*";
-  if (text.length <= 1024) return text;
-  return `${text.slice(0, 1021)}...`;
+function getColorByTime(run) {
+  const now = Date.now();
+  const total = run.durationMs;
+  const elapsed = now - run.startedAt;
+  const progress = elapsed / total;
+
+  if (progress < 0.5) return 0x2ecc71; // 🟢 green
+  if (progress < 0.8) return 0xf1c40f; // 🟡 yellow
+  return 0xe74c3c; // 🔴 red
 }
 
-function buildTemplatePreviewEmbed(data) {
-  return new EmbedBuilder()
-    .setTitle("🎁 Giveaway Preview")
-    .setDescription("Please review the giveaway details below before continuing.")
-    .addFields(
-      { name: "Token", value: `\`${data.token}\``, inline: true },
-      { name: "Prize", value: data.prize, inline: true },
-      { name: "Winners", value: String(data.winnerCount), inline: true },
-      { name: "Duration", value: formatDuration(data.durationMs), inline: true },
-      { name: "Channel", value: `<#${data.channelId}>`, inline: true },
-      {
-        name: "Required Role",
-        value: data.requiredRoleId ? `<@&${data.requiredRoleId}>` : "None",
-        inline: true
-      },
-      {
-        name: "Min Account Age",
-        value: `${data.minAccountAgeDays || 3} day(s)`,
-        inline: true
-      },
-      {
-        name: "Staff Participation",
-        value: data.staffParticipation ? "Yes" : "No",
-        inline: true
-      },
-      {
-        name: "Hosted By",
-        value: data.hostDisplay || "Not set",
-        inline: true
-      },
-      { name: "Created By", value: `<@${data.createdBy}>`, inline: true },
-      { name: "Announcement Message", value: truncateBlock(data.announcementMessage) },
-      { name: "Winner DM", value: truncateBlock(data.winnerDmMessage) },
-      { name: "Participant DM", value: truncateBlock(data.participantDmMessage) }
-    )
-    .setFooter({ text: "Only you can see this preview." });
+function getProgressBar(run) {
+  const total = run.durationMs;
+  const elapsed = Date.now() - run.startedAt;
+  const percent = Math.min(1, elapsed / total);
+
+  const filled = Math.floor(percent * 20);
+  const empty = 20 - filled;
+
+  return "█".repeat(filled) + "░".repeat(empty) + ` ${(percent * 100).toFixed(0)}%`;
 }
 
-function progressBar(percent) {
-  const total = 12;
-  const filled = Math.max(0, Math.min(total, Math.round(percent * total)));
-  return "█".repeat(filled) + "░".repeat(total - filled);
-}
-
-function getAnimatedTitle(percentLeft, frame, run) {
-  if (run.status === "ended") return "🏁 GiveX Giveaway Finished";
-  if (run.isPaused) return "⏸️ GiveX Giveaway Paused";
-
-  if (percentLeft > 0.75) return frame % 2 === 0 ? "🟢 GiveX Live Giveaway" : "✨ GiveX Live Giveaway";
-  if (percentLeft > 0.4) return frame % 2 === 0 ? "🟡 GiveX Live Giveaway" : "⚡ GiveX Live Giveaway";
-  if (percentLeft > 0.15) return frame % 2 === 0 ? "🟠 GiveX Live Giveaway" : "🔥 GiveX Live Giveaway";
-  return frame % 2 === 0 ? "🔴 GiveX Live Giveaway" : "🚨 GiveX Live Giveaway";
-}
-
-function getAnimatedStatus(percentLeft, run) {
+function getStatus(run) {
   if (run.status === "ended") return "ENDED";
   if (run.isPaused) return "PAUSED";
-  if (percentLeft > 0.75) return "RUNNING STRONG";
-  if (percentLeft > 0.4) return "MIDWAY";
-  if (percentLeft > 0.15) return "ENDING SOON";
-  return "FINAL MOMENTS";
-}
 
-function getStatusColor(percentLeft, run) {
-  if (run.status === "ended") return 0x95a5a6;
-  if (run.isPaused) return 0x3498db;
-  if (percentLeft > 0.75) return 0x2ecc71;
-  if (percentLeft > 0.4) return 0xf1c40f;
-  if (percentLeft > 0.15) return 0xe67e22;
-  return 0xe74c3c;
-}
+  const now = Date.now();
+  const half = run.startedAt + run.durationMs / 2;
+  const final = run.startedAt + run.durationMs * 0.75;
 
-function buildRequirementText(run) {
-  const parts = [];
+  if (now >= final) return "FINAL";
+  if (now >= half) return "MIDWAY";
 
-  if (run.requiredRoleId) {
-    parts.push(`Role: <@&${run.requiredRoleId}>`);
-  }
-
-  if (run.minAccountAgeDays && run.minAccountAgeDays > 0) {
-    parts.push(`Account Age: ${run.minAccountAgeDays}+ day(s)`);
-  }
-
-  parts.push(`Staff Participation: ${run.staffParticipation ? "Allowed" : "Blocked"}`);
-
-  return parts.join("\n");
-}
-
-function buildClaimText(run) {
-  if (run.claimTimeoutMs === -1) return "No limit";
-  if (run.status === "ended" && run.winnerIds.length && run.claimDeadline > 0) {
-    return `<t:${Math.floor(run.claimDeadline / 1000)}:F>`;
-  }
-  return formatDurationDetailed(run.claimTimeoutMs || 12 * 60 * 60 * 1000);
+  return "STARTED";
 }
 
 function buildLiveEmbed(run) {
-  const now = Date.now();
-  const total = Math.max(1, run.endsAt - run.startedAt);
-  const left = Math.max(0, run.endsAt - now);
-  const percentLeft = left / total;
-  const frame = Math.floor(now / 5000);
-  const endUnix = Math.floor(run.endsAt / 1000);
+  const remaining = Math.max(0, run.endsAt - Date.now());
 
-  const embed = new EmbedBuilder()
-    .setColor(getStatusColor(percentLeft, run))
-    .setTitle(getAnimatedTitle(percentLeft, frame, run))
+  return new EmbedBuilder()
+    .setColor(getColorByTime(run))
+    .setTitle("⚡ GiveX Live Giveaway")
     .setDescription("Giveaway is active and updating live.")
     .addFields(
       { name: "🎁 Prize", value: run.prize, inline: false },
-      { name: "🎤 Hosted By", value: run.hostDisplay || "Unknown", inline: false },
-      { name: "🏆 Winners", value: String(run.winnerCount), inline: true },
-      { name: "👥 Participants", value: String(run.joinedUserIds.length), inline: true },
-      { name: "📌 Status", value: getAnimatedStatus(percentLeft, run), inline: true },
-      { name: "🛡️ Requirements", value: buildRequirementText(run), inline: false },
-      { name: "⏳ Time Remaining", value: run.status === "running" ? formatDurationDetailed(left) : "Ended", inline: false },
-      { name: "📩 Claim Time", value: buildClaimText(run), inline: false },
-      { name: "📊 Progress", value: `${progressBar(percentLeft)} ${Math.round(percentLeft * 100)}%`, inline: false },
-      { name: "🕒 Ends At", value: `<t:${endUnix}:F>`, inline: false }
+      { name: "🎤 Hosted By", value: run.hostDisplay || "GiveX", inline: false },
+      {
+        name: "🏆 Winners",
+        value: String(run.winnerCount),
+        inline: true
+      },
+      {
+        name: "👥 Participants",
+        value: String(run.joinedUserIds.length),
+        inline: true
+      },
+      {
+        name: "📌 Status",
+        value: getStatus(run),
+        inline: true
+      },
+      {
+        name: "🛡️ Requirements",
+        value:
+          `Role: ${run.requiredRoleId ? `<@&${run.requiredRoleId}>` : "None"}\n` +
+          `Account Age: ${run.minAccountAgeDays || 0}+ day(s)\n` +
+          `Staff Participation: ${run.staffParticipation ? "Allowed" : "Not Allowed"}`,
+        inline: false
+      },
+      {
+        name: "⏳ Time Remaining",
+        value: formatDurationDetailed(remaining),
+        inline: false
+      },
+      {
+        name: "📩 Claim Time",
+        value: run.claimTimeoutMs === -1 ? "No limit" : formatDurationDetailed(run.claimTimeoutMs),
+        inline: false
+      },
+      {
+        name: "📊 Progress",
+        value: getProgressBar(run),
+        inline: false
+      },
+      {
+        name: "🕒 Ends At",
+        value: `<t:${Math.floor(run.endsAt / 1000)}:F>`,
+        inline: false
+      }
     )
     .setFooter({ text: "Updates every 5 seconds" });
-
-  return embed;
 }
 
-function buildEndingWarningEmbed(prize, winners, timeLeft, stage) {
-  let color = 0xf1c40f;
-  let title = "⏳ Giveaway Update";
-  let description = "The giveaway is moving into its final phase.";
-
-  if (stage === 1) {
-    color = 0xf1c40f;
-    title = "🟡 Giveaway Halfway Warning";
-    description = "The giveaway has reached the halfway mark.";
-  }
-
-  if (stage === 2) {
-    color = 0xe74c3c;
-    title = "🔴 Final Countdown";
-    description = "This is the final stretch before the giveaway ends.";
-  }
-
+function buildEndingWarningEmbed(prize, winners, time, type) {
   return new EmbedBuilder()
-    .setColor(color)
-    .setTitle(title)
-    .setDescription(description)
-    .addFields(
-      { name: "🎁 Prize", value: prize, inline: false },
-      { name: "🏆 Winners", value: String(winners), inline: true },
-      { name: "⏳ Time Left", value: timeLeft, inline: true }
-    )
-    .setFooter({ text: "Join before time runs out." });
+    .setColor(type === 1 ? 0xf1c40f : 0xe74c3c)
+    .setTitle(type === 1 ? "⏳ Giveaway Midway" : "🚨 Final Call")
+    .setDescription(
+      `Prize: **${prize}**\nWinners: **${winners}**\nTime Left: **${time}**`
+    );
 }
 
 function buildWinnersEmbed(prize, winners) {
   return new EmbedBuilder()
     .setColor(0x9b59b6)
-    .setTitle("🎉 Giveaway Ended!")
-    .setDescription("The winners have been selected.")
-    .addFields(
-      { name: "🏆 Winner(s)", value: winners.map(user => `<@${user.id}>`).join("\n") },
-      { name: "🎁 Prize", value: prize }
+    .setTitle("🎉 Giveaway Ended")
+    .setDescription(
+      `Prize: **${prize}**\nWinner(s): ${winners.map(u => `<@${u.id}>`).join(", ")}`
     );
 }
 
 function buildNoParticipantsEmbed(prize) {
   return new EmbedBuilder()
-    .setColor(0x95a5a6)
+    .setColor(0xe74c3c)
     .setTitle("❌ Giveaway Ended")
-    .setDescription("No valid participants entered this giveaway.")
-    .addFields({
-      name: "🎁 Prize",
-      value: prize
-    });
+    .setDescription(`No participants joined for **${prize}**.`);
 }
 
-function buildManualPickEmbed(prize, chosenUser) {
+function buildManualPickEmbed(prize, user) {
   return new EmbedBuilder()
     .setColor(0x3498db)
-    .setTitle("👑 Management Picked a Winner")
-    .setDescription("A winner has been chosen by management.")
-    .addFields(
-      { name: "🏆 Winner", value: `<@${chosenUser.id}>` },
-      { name: "🎁 Prize", value: prize }
-    );
+    .setTitle("👑 Winner Selected")
+    .setDescription(`Prize: **${prize}**\nWinner: <@${user.id}>`);
 }
 
 module.exports = {
-  buildTemplatePreviewEmbed,
   buildLiveEmbed,
   buildEndingWarningEmbed,
   buildWinnersEmbed,

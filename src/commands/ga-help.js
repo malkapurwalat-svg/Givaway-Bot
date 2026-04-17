@@ -31,7 +31,9 @@ module.exports = {
         { name: "/gxresume", value: "Resume paused giveaway" },
         { name: "/gxclaim", value: "Mark winner as claimed" }
       )
-      .setFooter({ text: "Supported placeholders: {time} {prize} {winners} {token} {winner_mentions}" });
+      .setFooter({
+        text: "Supported placeholders: {time} {prize} {winners} {token} {winner_mentions}"
+      });
 
     await interaction.reply({
       embeds: [embed],

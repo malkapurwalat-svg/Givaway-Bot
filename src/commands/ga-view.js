@@ -13,7 +13,9 @@ module.exports = {
     .setName("gxview")
     .setDescription("View a saved giveaway template")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addStringOption(opt => opt.setName("token").setDescription("Saved token").setRequired(true)),
+    .addStringOption(opt =>
+      opt.setName("token").setDescription("Saved token").setRequired(true)
+    ),
 
   async execute(interaction) {
     if (!(await ensureAdmin(interaction))) return;
@@ -42,7 +44,7 @@ module.exports = {
         { name: "Channel", value: `<#${template.channelId}>`, inline: true },
         { name: "Hosted By", value: template.hostDisplay || "GiveX System", inline: true },
         { name: "Required Role", value: template.requiredRoleId ? `<@&${template.requiredRoleId}>` : "None", inline: true },
-        { name: "Min Account Age", value: `${template.minAccountAgeDays} day(s)`, inline: true },
+        { name: "Min Account Age", value: `${template.minAccountAgeDays ?? 3} day(s)`, inline: true },
         { name: "Staff Participation", value: template.staffParticipation ? "Yes" : "No", inline: true }
       );
 
